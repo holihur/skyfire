@@ -14,6 +14,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"math/big"
 	"net/http"
@@ -27,6 +28,7 @@ import (
 	"skyfire/internal/driver"
 	"skyfire/internal/manager"
 	"skyfire/internal/store"
+	"skyfire/internal/web"
 )
 
 func main() {
@@ -115,6 +117,20 @@ func main() {
 		Password:  *password,
 		Log:       log,
 	})
+	if *static == "" {
+		sub, err := fs.Sub(web.Dist, "dist")
+		if err != nil {
+			log.Error("cannot read embedded frontend", "error", err)
+			os.Exit(1)
+		}
+		srv = api.New(mgr, drv, *dryRun, api.Options{
+			StaticFS: sub,
+			Token:    *token,
+			Username: *username,
+			Password: *password,
+			Log:      log,
+		})
+	}
 	httpSrv := &http.Server{
 		Addr:              *addr,
 		Handler:           srv,

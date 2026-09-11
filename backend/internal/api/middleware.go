@@ -4,10 +4,13 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"io"
 	"io/fs"
 	"log/slog"
+	"mime"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -19,6 +22,21 @@ const sessionTTL = 24 * time.Hour
 // chain assembles the full middleware chain and SPA static handler. Auth is
 // enforced everywhere except /api/login and /api/logout.
 func (s *Server) chain() http.Handler {
+	// static + SPA fallback for everything not matched by the API mux
+	switch {
+	case s.staticFS != nil:
+		s.mux.Handle("/", spaFS(s.staticFS))
+	case s.static != "":
+		s.mux.Handle("/", spaHandler(s.static))
+	default:
+		s.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasPrefix(r.URL.Path, "/api/") {
+				writeError(w, 404, errors.New("not found"))
+				return
+			}
+			http.NotFound(w, r)
+		})
+	}
 	var h http.Handler = s.mux
 	h = cors(h)
 	if s.log != nil {
@@ -182,25 +200,50 @@ func spaHandler(dir string) http.Handler {
 // spaFS serves the embedded frontend with an index.html fallback for the
 // client-side router.
 func spaFS(fsys fs.FS) http.Handler {
-	srv := http.FileServerFS(fsys)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			writeError(w, 404, errors.New("not found"))
 			return
 		}
-		p := strings.TrimPrefix(r.URL.Path, "/")
-		if p == "" {
-			p = "index.html"
+		clean := strings.TrimPrefix(path.Clean("/"+r.URL.Path), "/")
+		name := clean
+		f, err := fsys.Open(clean)
+		if err != nil {
+			name = "index.html"
+			f, err = fsys.Open(name)
+			if err != nil {
+				http.NotFound(w, r)
+				return
+			}
 		}
-		if f, err := fsys.Open(p); err != nil {
-			// SPA fallback: serve the app shell for unknown client-side routes
-			r2 := r.Clone(r.Context())
-			r2.URL.Path = "/index.html"
-			srv.ServeHTTP(w, r2)
-			return
-		} else {
+		defer f.Close()
+		if fi, err := f.Stat(); err == nil && fi.IsDir() {
 			_ = f.Close()
+			name = strings.TrimSuffix(clean, "/") + "/index.html"
+			if clean == "" {
+				name = "index.html"
+			}
+			f, err = fsys.Open(name)
+			if err != nil {
+				name = "index.html"
+				f, err = fsys.Open(name)
+				if err != nil {
+					http.NotFound(w, r)
+					return
+				}
+			}
+			defer f.Close()
 		}
-		srv.ServeHTTP(w, r)
+		fi, err := f.Stat()
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", mime.TypeByExtension(filepath.Ext(name)))
+		if rs, ok := f.(io.ReadSeeker); ok {
+			http.ServeContent(w, r, name, fi.ModTime(), rs)
+			return
+		}
+		io.Copy(w, f)
 	})
 }
