@@ -6,6 +6,7 @@ package manager
 import (
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/netip"
 	"sort"
@@ -41,6 +42,9 @@ func New(cfgPath string, drv driver.Driver, dryRun bool, log *slog.Logger) (*Man
 	cfg, err := store.Load(cfgPath)
 	if err != nil {
 		return nil, err
+	}
+	if log == nil {
+		log = slog.New(slog.NewTextHandler(io.Discard, nil))
 	}
 	m := &Manager{path: cfgPath, store: cfg, driver: drv, dryRun: dryRun, log: log}
 	if !dryRun {

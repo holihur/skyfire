@@ -3,7 +3,6 @@ package manager
 import (
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -129,43 +128,43 @@ func TestDuplicatePeerAddress(t *testing.T) {
 	boolPtr := func(v bool) *bool { return &v }
 
 	peerA := &PeerInput{
-		Name:         "a",
-		Address:      "10.42.0.5",
-		GenerateKeys: true,
+		Name:          "a",
+		Address:       "10.42.0.5",
+		GenerateKeys:  true,
 		WithPreshared: boolPtr(false),
-		Enabled:      true,
+		Enabled:       true,
 	}
 	if _, err := m.CreatePeer("wg0", peerA); err != nil {
 		t.Fatalf("create peer A: %v", err)
 	}
 
 	peerB := &PeerInput{
-		Name:         "b",
-		Address:      "10.42.0.5",
-		GenerateKeys: true,
+		Name:          "b",
+		Address:       "10.42.0.5",
+		GenerateKeys:  true,
 		WithPreshared: boolPtr(false),
-		Enabled:      true,
+		Enabled:       true,
 	}
 	if _, err := m.CreatePeer("wg0", peerB); !errors.Is(err, ErrConflict) {
 		t.Fatalf("duplicate peer address: want ErrConflict, got %v", err)
 	}
 
 	peerIface := &PeerInput{
-		Name:         "c",
-		Address:      "10.42.0.1",
-		GenerateKeys: true,
+		Name:          "c",
+		Address:       "10.42.0.1",
+		GenerateKeys:  true,
 		WithPreshared: boolPtr(false),
-		Enabled:      true,
+		Enabled:       true,
 	}
 	if _, err := m.CreatePeer("wg0", peerIface); !errors.Is(err, ErrConflict) {
 		t.Fatalf("conflict with interface address: want ErrConflict, got %v", err)
 	}
 
 	peerAuto := &PeerInput{
-		Name:         "d",
-		GenerateKeys: true,
+		Name:          "d",
+		GenerateKeys:  true,
 		WithPreshared: boolPtr(false),
-		Enabled:      true,
+		Enabled:       true,
 	}
 	view, err := m.CreatePeer("wg0", peerAuto)
 	if err != nil {
