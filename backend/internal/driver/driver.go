@@ -70,6 +70,21 @@ func (s DeviceStatus) Peer(pub string) *PeerStatus {
 	return nil
 }
 
+// RouteTargets filters prefixes skyfired never manages: the default routes
+// ("0.0.0.0/0", "::/0") and empty entries. Taking over the system default
+// route (full tunnel) requires policy routing with fwmark, which is out of
+// scope for the daemon.
+func RouteTargets(allowed []string) []string {
+	var out []string
+	for _, a := range allowed {
+		if a == "" || a == "0.0.0.0/0" || a == "::/0" {
+			continue
+		}
+		out = append(out, a)
+	}
+	return out
+}
+
 // Driver manages the full lifecycle of a wireguard interface.
 type Driver interface {
 	Name() string

@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"skyfire/internal/driver"
+
+	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
 func TestNonNilSlices(t *testing.T) {
@@ -54,5 +56,22 @@ func TestInterfaceViewMarshalEmptyPeersAsArray(t *testing.T) {
 	}
 	if strings.Contains(s, `:null`) {
 		t.Fatalf("JSON must not contain null fields:\n%s", s)
+	}
+}
+func TestValidatePresharedKey(t *testing.T) {
+	valid, err := wgtypes.GeneratePrivateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validatePresharedKey(""); err != nil {
+		t.Fatalf("empty psk must be allowed: %v", err)
+	}
+	if err := validatePresharedKey(valid.String()); err != nil {
+		t.Fatalf("valid psk rejected: %v", err)
+	}
+	for _, bad := range []string{"123456", "not-a-key", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"} {
+		if err := validatePresharedKey(bad); err == nil {
+			t.Fatalf("invalid psk %q accepted", bad)
+		}
 	}
 }

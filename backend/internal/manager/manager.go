@@ -96,9 +96,32 @@ func (m *Manager) applyInterface(iface *store.Interface) error {
 		}
 	}
 	if iface.Up {
-		return m.driver.Up(iface.Name)
+		if err := m.driver.Up(iface.Name); err != nil {
+			return fmt.Errorf("up %s: %w", iface.Name, err)
+		}
+		if err := driver.EnsureForwarding(); err != nil {
+			m.log.Warn("enable ip forwarding", "iface", iface.Name, "error", err)
+		}
+		if err := driver.AddRoutes(iface.Name, allowedIPs(iface)); err != nil {
+			m.log.Warn("install routes", "iface", iface.Name, "error", err)
+		}
+		return nil
 	}
+	driver.RemoveRoutes(iface.Name, allowedIPs(iface))
 	return m.driver.Down(iface.Name)
+}
+
+// allowedIPs unions the AllowedIPs of all enabled peers; disabled peers must
+// not get routes.
+func allowedIPs(iface *store.Interface) []string {
+	var out []string
+	for _, p := range iface.Peers {
+		if !p.Enabled {
+			continue
+		}
+		out = append(out, p.AllowedIPs...)
+	}
+	return out
 }
 
 func toDriverConfig(iface *store.Interface) driver.Config {
@@ -252,6 +275,7 @@ func (m *Manager) DeleteInterface(name string) error {
 		return err
 	}
 	if !m.dryRun {
+		driver.RemoveRoutes(iface.Name, allowedIPs(iface))
 		if err := m.driver.Remove(iface.Name); err != nil {
 			m.log.Warn("driver remove failed", "iface", iface.Name, "error", err)
 		}
@@ -295,6 +319,9 @@ func (m *Manager) CreatePeer(ifaceName string, in *PeerInput) (*PeerView, error)
 	defer m.mu.Unlock()
 	iface, err := m.findInterfaceLocked(ifaceName)
 	if err != nil {
+		return nil, err
+	}
+	if err := validatePresharedKey(in.PresharedKey); err != nil {
 		return nil, err
 	}
 
@@ -373,6 +400,9 @@ func (m *Manager) UpdatePeer(ifaceName, publicKey string, in *PeerInput) (*PeerV
 	if err != nil {
 		return nil, err
 	}
+	if err := validatePresharedKey(in.PresharedKey); err != nil {
+		return nil, err
+	}
 	target, err := findPeerLocked(iface, publicKey)
 	if err != nil {
 		return nil, err
@@ -415,6 +445,9 @@ func (m *Manager) UpdatePeer(ifaceName, publicKey string, in *PeerInput) (*PeerV
 		}
 	}
 	target.PersistentKeepalive = in.PersistentKeepalive
+	if !m.dryRun && !equalStrings(target.AllowedIPs, in.AllowedIPs) {
+		driver.RemoveRoutes(iface.Name, target.AllowedIPs)
+	}
 	target.AllowedIPs = in.AllowedIPs
 	target.ClientRoutes = in.ClientRoutes
 	target.DNS = in.DNS
@@ -445,6 +478,9 @@ func (m *Manager) DeletePeer(ifaceName, publicKey string) error {
 	found := false
 	for i, p := range iface.Peers {
 		if p.PublicKey == publicKey {
+			if !m.dryRun {
+				driver.RemoveRoutes(iface.Name, p.AllowedIPs)
+			}
 			iface.Peers = append(iface.Peers[:i], iface.Peers[i+1:]...)
 			found = true
 			break
@@ -668,6 +704,19 @@ func validateAddresses(addrs []string) error {
 	return nil
 }
 
+// validatePresharedKey rejects malformed preshared keys up front so a bad
+// value never reaches the driver apply step (which would otherwise persist
+// the config first and fail with a cryptic wgtypes error).
+func validatePresharedKey(psk string) error {
+	if psk == "" {
+		return nil
+	}
+	if _, err := wgtypes.ParseKey(psk); err != nil {
+		return fmt.Errorf("invalid preshared key: must be a 32-byte base64 key (44 chars) or empty to auto-generate")
+	}
+	return nil
+}
+
 // nextFreeAddress picks the next unused host in the interface's first subnet.
 func nextFreeAddress(iface *store.Interface) (string, error) {
 	var used []string
@@ -729,6 +778,18 @@ func containsStr(list []string, s string) bool {
 		}
 	}
 	return false
+}
+
+func equalStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func firstNonEmpty(a, b string) string {

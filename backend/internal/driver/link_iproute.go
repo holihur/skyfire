@@ -4,6 +4,7 @@ package driver
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -76,6 +77,48 @@ func delWGLink(dev string) error {
 		return nil
 	}
 	return iprun("link", "delete", "dev", dev)
+}
+
+// EnsureForwarding enables IPv4 and IPv6 packet forwarding, the same thing
+// wg-quick does before bringing up a routed tunnel. Best-effort per family:
+// a missing IPv6 stack (read error) is tolerated, but a failing write is
+// reported. Requires root / CAP_NET_ADMIN.
+func EnsureForwarding() error {
+	for _, p := range []string{
+		"/proc/sys/net/ipv4/ip_forward",
+		"/proc/sys/net/ipv6/conf/all/forwarding",
+	} {
+		cur, err := os.ReadFile(p)
+		if err != nil {
+			continue // family unavailable (e.g. IPv6 disabled); skip it
+		}
+		if strings.TrimSpace(string(cur)) == "1" {
+			continue
+		}
+		if err := os.WriteFile(p, []byte("1\n"), 0o644); err != nil {
+			return fmt.Errorf("enable forwarding via %s: %w", p, err)
+		}
+	}
+	return nil
+}
+
+// AddRoutes installs one route per AllowedIP onto the tunnel device, like
+// wg-quick does. Idempotent: an existing route is not an error.
+func AddRoutes(dev string, allowed []string) error {
+	for _, a := range RouteTargets(allowed) {
+		if err := iprun("route", "add", a, "dev", dev); err != nil && !strings.Contains(err.Error(), "File exists") {
+			return err
+		}
+	}
+	return nil
+}
+
+// RemoveRoutes deletes the routes previously installed by AddRoutes. Routes
+// are removed best-effort; a missing route is not an error.
+func RemoveRoutes(dev string, allowed []string) {
+	for _, a := range RouteTargets(allowed) {
+		_ = iprun("route", "del", a, "dev", dev)
+	}
 }
 
 func atoiOr(s string, def int) int {

@@ -77,3 +77,12 @@ func setLinkDown(dev string) error {
 }
 
 func delWGLink(dev string) error { return nil }
+
+// On Windows, route and forwarding management is not implemented yet: the
+// Wintun adapter created by wireguard-go is torn down together with the
+// process, which removes its routes anyway.
+func EnsureForwarding() error { return nil }
+
+func AddRoutes(dev string, allowed []string) error { return nil }
+
+func RemoveRoutes(dev string, allowed []string) {}
