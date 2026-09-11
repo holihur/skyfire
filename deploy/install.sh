@@ -125,7 +125,10 @@ AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
 WantedBy=multi-user.target
 EOF
   systemctl daemon-reload
-  systemctl enable --now skyfire
+  systemctl enable skyfire
+  # restart (not just --now) so re-running the installer on an existing
+  # deployment actually picks up the new binary
+  systemctl restart skyfire
   info "service skyfire started on :51821"
   if [[ -n "${SKYFIRE_PASSWORD:-}" ]]; then
     info "web login: http://<host>:51821  (username 'admin', password from SKYFIRE_PASSWORD)"
