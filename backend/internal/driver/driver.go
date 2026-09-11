@@ -10,7 +10,11 @@ import "time"
 type Config struct {
 	PrivateKey string     `json:"privateKey"`
 	ListenPort int        `json:"listenPort"`
-	Peers      []PeerSpec `json:"peers"`
+	// FirewallMark, when > 0, tags the device's own packets (endpoint UDP
+	// traffic) so the full-tunnel policy routing rules can exclude them and
+	// avoid a routing loop. Required alongside AddDefaultRoutes.
+	FirewallMark int        `json:"firewallMark,omitempty"`
+	Peers        []PeerSpec `json:"peers"`
 }
 
 // PeerSpec is a single peer as applied to the device.
@@ -70,10 +74,9 @@ func (s DeviceStatus) Peer(pub string) *PeerStatus {
 	return nil
 }
 
-// RouteTargets filters prefixes skyfired never manages: the default routes
-// ("0.0.0.0/0", "::/0") and empty entries. Taking over the system default
-// route (full tunnel) requires policy routing with fwmark, which is out of
-// scope for the daemon.
+// RouteTargets filters prefixes skyfired never manages with plain
+// per-prefix routes: the default routes ("0.0.0.0/0", "::/0") and empty
+// entries. Default routes need policy routing instead — see AddDefaultRoutes.
 func RouteTargets(allowed []string) []string {
 	var out []string
 	for _, a := range allowed {

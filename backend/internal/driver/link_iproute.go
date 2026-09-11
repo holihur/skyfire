@@ -121,6 +121,63 @@ func RemoveRoutes(dev string, allowed []string) {
 	}
 }
 
+// routeTable is the dedicated policy-routing table used for full-tunnel
+// default routes. Same number wg-quick picks (51820).
+const routeTable = "51820"
+
+// AddDefaultRoutes sets up policy routing so a default route through the
+// tunnel can coexist with the system's real default route (which stays
+// needed for the tunnel endpoint's own UDP traffic). Mirrors wg-quick:
+//
+//	ip route add 0.0.0.0/0 dev wg0 table 51820
+//	ip rule add not fwmark 51820 table 51820
+//	ip rule add table main suppress_prefixlength 0
+//
+// The device must carry fwmark 51820 (set via driver.Config.FirewallMark) so
+// its own endpoint packets skip the tunnel table and avoid a routing loop.
+// Only the requested families are touched; IPv6 is skipped when the host has
+// no IPv6 support. Idempotent.
+func AddDefaultRoutes(dev string, v4, v6 bool) error {
+	if v4 {
+		if err := iprun("route", "add", "0.0.0.0/0", "dev", dev, "table", routeTable); err != nil && !strings.Contains(err.Error(), "File exists") {
+			return err
+		}
+		if err := iprun("rule", "add", "not", "fwmark", routeTable, "table", routeTable); err != nil && !strings.Contains(err.Error(), "File exists") {
+			return err
+		}
+		if err := iprun("rule", "add", "table", "main", "suppress_prefixlength", "0"); err != nil && !strings.Contains(err.Error(), "File exists") {
+			return err
+		}
+	}
+	if v6 {
+		if err := iprun("-6", "route", "add", "::/0", "dev", dev, "table", routeTable); err != nil && !strings.Contains(err.Error(), "File exists") {
+			return err
+		}
+		if err := iprun("-6", "rule", "add", "not", "fwmark", routeTable, "table", routeTable); err != nil && !strings.Contains(err.Error(), "File exists") {
+			return err
+		}
+		if err := iprun("-6", "rule", "add", "table", "main", "suppress_prefixlength", "0"); err != nil && !strings.Contains(err.Error(), "File exists") {
+			return err
+		}
+	}
+	return nil
+}
+
+// RemoveDefaultRoutes tears down the policy routing installed by
+// AddDefaultRoutes. Best-effort: errors are ignored.
+func RemoveDefaultRoutes(dev string, v4, v6 bool) {
+	if v4 {
+		_ = iprun("route", "del", "0.0.0.0/0", "dev", dev, "table", routeTable)
+		_ = iprun("rule", "del", "not", "fwmark", routeTable, "table", routeTable)
+		_ = iprun("rule", "del", "table", "main", "suppress_prefixlength", "0")
+	}
+	if v6 {
+		_ = iprun("-6", "route", "del", "::/0", "dev", dev, "table", routeTable)
+		_ = iprun("-6", "rule", "del", "not", "fwmark", routeTable, "table", routeTable)
+		_ = iprun("-6", "rule", "del", "table", "main", "suppress_prefixlength", "0")
+	}
+}
+
 func atoiOr(s string, def int) int {
 	var n int
 	_, err := fmt.Sscanf(s, "%d", &n)

@@ -86,3 +86,9 @@ func EnsureForwarding() error { return nil }
 func AddRoutes(dev string, allowed []string) error { return nil }
 
 func RemoveRoutes(dev string, allowed []string) {}
+
+// Full-tunnel policy routing is not implemented on Windows yet; the Wintun
+// adapter is process-scoped and its routes disappear with it.
+func AddDefaultRoutes(dev string, v4, v6 bool) error { return nil }
+
+func RemoveDefaultRoutes(dev string, v4, v6 bool) {}

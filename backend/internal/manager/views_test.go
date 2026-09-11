@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"skyfire/internal/driver"
+	"skyfire/internal/store"
 
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
@@ -73,5 +74,35 @@ func TestValidatePresharedKey(t *testing.T) {
 		if err := validatePresharedKey(bad); err == nil {
 			t.Fatalf("invalid psk %q accepted", bad)
 		}
+	}
+}
+
+func TestDefaultRouteFamiliesAndFwMark(t *testing.T) {
+	if v4, v6 := defaultRouteFamilies([]string{"10.0.0.0/8"}); v4 || v6 {
+		t.Fatal("no default route expected")
+	}
+	if v4, v6 := defaultRouteFamilies([]string{"0.0.0.0/0"}); !v4 || v6 {
+		t.Fatalf("want v4 only, got v4=%v v6=%v", v4, v6)
+	}
+	if v4, v6 := defaultRouteFamilies([]string{"::/0", "0.0.0.0/0"}); !v4 || !v6 {
+		t.Fatalf("want both, got v4=%v v6=%v", v4, v6)
+	}
+	iface := &store.Interface{
+		Name: "wg0",
+		Peers: []*store.Peer{
+			{PublicKey: "k", Enabled: true, AllowedIPs: []string{"0.0.0.0/0"}},
+		},
+	}
+	cfg := toDriverConfig(iface)
+	if cfg.FirewallMark != routeFwMark {
+		t.Fatalf("full tunnel must set fwmark %d, got %d", routeFwMark, cfg.FirewallMark)
+	}
+	iface.Peers[0].AllowedIPs = []string{"10.42.0.2/32"}
+	if cfg = toDriverConfig(iface); cfg.FirewallMark != 0 {
+		t.Fatalf("subnet-only must not set fwmark, got %d", cfg.FirewallMark)
+	}
+	iface.Peers[0].Enabled = false
+	if cfg = toDriverConfig(iface); cfg.FirewallMark != 0 {
+		t.Fatalf("disabled peer must not trigger fwmark, got %d", cfg.FirewallMark)
 	}
 }

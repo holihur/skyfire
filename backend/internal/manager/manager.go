@@ -85,6 +85,7 @@ func (m *Manager) applyInterface(iface *store.Interface) error {
 	if err := m.driver.Configure(iface.Name, toDriverConfig(iface)); err != nil {
 		return fmt.Errorf("configure %s: %w", iface.Name, err)
 	}
+	v4, v6 := defaultRouteFamilies(allowedIPs(iface))
 	if iface.MTU > 0 {
 		if err := m.driver.SetMTU(iface.Name, iface.MTU); err != nil {
 			m.log.Warn("set mtu", "iface", iface.Name, "error", err)
@@ -105,9 +106,15 @@ func (m *Manager) applyInterface(iface *store.Interface) error {
 		if err := driver.AddRoutes(iface.Name, allowedIPs(iface)); err != nil {
 			m.log.Warn("install routes", "iface", iface.Name, "error", err)
 		}
+		if v4 || v6 {
+			if err := driver.AddDefaultRoutes(iface.Name, v4, v6); err != nil {
+				m.log.Warn("install default routes", "iface", iface.Name, "error", err)
+			}
+		}
 		return nil
 	}
 	driver.RemoveRoutes(iface.Name, allowedIPs(iface))
+	driver.RemoveDefaultRoutes(iface.Name, v4, v6)
 	return m.driver.Down(iface.Name)
 }
 
@@ -124,10 +131,31 @@ func allowedIPs(iface *store.Interface) []string {
 	return out
 }
 
+// routeFwMark matches the policy-routing table number in the driver package
+// (wg-quick's 51820). The device fwmark and the routing table share the value.
+const routeFwMark = 51820
+
+// defaultRouteFamilies reports which address families request a full tunnel
+// (0.0.0.0/0 and/or ::/0) among the given prefixes.
+func defaultRouteFamilies(allowed []string) (v4, v6 bool) {
+	for _, a := range allowed {
+		switch a {
+		case "0.0.0.0/0":
+			v4 = true
+		case "::/0":
+			v6 = true
+		}
+	}
+	return v4, v6
+}
+
 func toDriverConfig(iface *store.Interface) driver.Config {
 	cfg := driver.Config{
 		PrivateKey: iface.PrivateKey,
 		ListenPort: iface.ListenPort,
+	}
+	if v4, v6 := defaultRouteFamilies(allowedIPs(iface)); v4 || v6 {
+		cfg.FirewallMark = routeFwMark
 	}
 	for _, p := range iface.Peers {
 		if !p.Enabled {
@@ -447,6 +475,9 @@ func (m *Manager) UpdatePeer(ifaceName, publicKey string, in *PeerInput) (*PeerV
 	target.PersistentKeepalive = in.PersistentKeepalive
 	if !m.dryRun && !equalStrings(target.AllowedIPs, in.AllowedIPs) {
 		driver.RemoveRoutes(iface.Name, target.AllowedIPs)
+		if v4, v6 := defaultRouteFamilies(target.AllowedIPs); v4 || v6 {
+			driver.RemoveDefaultRoutes(iface.Name, v4, v6)
+		}
 	}
 	target.AllowedIPs = in.AllowedIPs
 	target.ClientRoutes = in.ClientRoutes
@@ -480,6 +511,9 @@ func (m *Manager) DeletePeer(ifaceName, publicKey string) error {
 		if p.PublicKey == publicKey {
 			if !m.dryRun {
 				driver.RemoveRoutes(iface.Name, p.AllowedIPs)
+				if v4, v6 := defaultRouteFamilies(p.AllowedIPs); v4 || v6 {
+					driver.RemoveDefaultRoutes(iface.Name, v4, v6)
+				}
 			}
 			iface.Peers = append(iface.Peers[:i], iface.Peers[i+1:]...)
 			found = true

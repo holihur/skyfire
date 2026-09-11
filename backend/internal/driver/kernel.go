@@ -52,6 +52,10 @@ func (k *Kernel) Configure(name string, cfg Config) error {
 	if cfg.ListenPort > 0 {
 		kc.ListenPort = &cfg.ListenPort
 	}
+	if cfg.FirewallMark > 0 {
+		fw := cfg.FirewallMark
+		kc.FirewallMark = &fw
+	}
 	for _, p := range cfg.Peers {
 		pk, err := wgtypes.ParseKey(p.PublicKey)
 		if err != nil {

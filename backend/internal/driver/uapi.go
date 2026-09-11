@@ -36,6 +36,9 @@ func renderUAPI(cfg Config) (string, error) {
 	if cfg.ListenPort > 0 {
 		fmt.Fprintf(&b, "listen_port=%d\n", cfg.ListenPort)
 	}
+	if cfg.FirewallMark > 0 {
+		fmt.Fprintf(&b, "fwmark=%d\n", cfg.FirewallMark)
+	}
 	b.WriteString("replace_peers=true\n")
 
 	for _, p := range cfg.Peers {
