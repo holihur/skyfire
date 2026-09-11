@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { GearIcon, LightningBoltIcon, ExitIcon, SunIcon, MoonIcon } from '@radix-ui/react-icons'
+import { LogOut, Moon, Settings, Sun, Zap } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { useAuth } from '../auth/AuthContext'
 import { useI18n } from '../i18n'
 import { useTheme } from '../theme'
@@ -33,22 +34,22 @@ export default function Layout() {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex items-center justify-between border-b border-edge bg-header/80 px-5 py-3 backdrop-blur">
+      <header className="flex items-center justify-between border-b bg-card/80 px-5 py-3 backdrop-blur">
         <div className="flex items-center gap-6">
           <Link to="/" className="flex items-center gap-2.5">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-sky-500 to-blue-700 text-sm font-bold text-white shadow shadow-sky-900/50">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-sky-500 to-blue-700 text-sm font-bold text-primary-foreground shadow shadow-sky-900/50">
               S
             </span>
-            <span className="text-base font-semibold tracking-tight text-fg">
+            <span className="text-base font-semibold tracking-tight text-foreground">
               Skyfire
-              <span className="ml-2 text-xs font-normal text-muted">{t('app.subtitle')}</span>
+              <span className="ml-2 text-xs font-normal text-muted-foreground">{t('app.subtitle')}</span>
             </span>
           </Link>
 
           <nav className="hidden items-center gap-1 md:flex">
             <NavLink
               to="/"
-              className="rounded-lg px-3 py-1.5 text-sm text-muted transition hover:text-fg data-active:bg-hover/5 data-active:text-fg"
+              className="rounded-lg px-3 py-1.5 text-sm text-muted-foreground transition hover:text-foreground data-active:bg-accent data-active:text-foreground"
             >
               {t('nav.interfaces')}
             </NavLink>
@@ -57,21 +58,21 @@ export default function Layout() {
 
         <div className="flex items-center gap-3">
           {health && (
-            <span className="mono rounded-full border border-edge2 bg-panel2 px-3 py-1 text-muted">
+            <span className="mono hidden rounded-full border bg-popover px-3 py-1 text-muted-foreground sm:inline-flex">
               {health.driver}
               {health.dryRun && (
-                <span className="ml-2 rounded-full bg-warn/15 px-2 py-0.5 text-warn">
+                <span className="ml-2 rounded-full bg-warning/15 px-2 py-0.5 text-warning">
                   {t('status.dryrun')}
                 </span>
               )}
             </span>
           )}
-          <span className="flex items-center gap-1 rounded-full bg-ok/10 px-2.5 py-1 text-xs font-medium text-ok">
-            <LightningBoltIcon className="h-3.5 w-3.5" />
+          <span className="flex items-center gap-1 rounded-full bg-success/10 px-2.5 py-1 text-xs font-medium text-success">
+            <Zap className="h-3.5 w-3.5" />
             {t('status.online')}
           </span>
           <select
-            className="cursor-pointer rounded-lg border border-edge2 bg-panel2 px-2 py-1.5 text-xs font-medium text-fg2 outline-none transition hover:text-fg"
+            className="cursor-pointer rounded-lg border bg-popover px-2 py-1.5 text-xs font-medium text-secondary-foreground outline-none transition hover:text-foreground"
             value={lang}
             onChange={(e) => setLang(e.target.value as 'en' | 'zh')}
             title={t('lang.' + lang)}
@@ -80,23 +81,20 @@ export default function Layout() {
             <option value="en">{t('lang.en')}</option>
             <option value="zh">{t('lang.zh')}</option>
           </select>
-          <button
-            className="btn-ghost !p-2"
+          <Button
+            variant="ghost"
+            size="icon"
             title={theme === 'dark' ? t('theme.light') : t('theme.dark')}
             onClick={toggle}
           >
-            {theme === 'dark' ? <SunIcon className="h-4 w-4" /> : <MoonIcon className="h-4 w-4" />}
-          </button>
-          <button
-            className="btn-ghost !p-2"
-            title={t('header.settings')}
-            onClick={() => setSettingsOpen(true)}
-          >
-            <GearIcon className="h-4 w-4" />
-          </button>
-          <button className="btn-ghost !p-2" title={t('header.signout')} onClick={doLogout}>
-            <ExitIcon className="h-4 w-4" />
-          </button>
+            {theme === 'dark' ? <Sun /> : <Moon />}
+          </Button>
+          <Button variant="ghost" size="icon" title={t('header.settings')} onClick={() => setSettingsOpen(true)}>
+            <Settings />
+          </Button>
+          <Button variant="ghost" size="icon" title={t('header.signout')} onClick={doLogout}>
+            <LogOut />
+          </Button>
         </div>
       </header>
 

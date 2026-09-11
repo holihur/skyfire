@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react'
 import Dialog from './Dialog'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
+import { useToast } from '@/components/ui/use-toast'
 import { api } from '../lib/api'
-import { useToast } from './Toast'
 import { useI18n } from '../i18n'
 import { parseList, joinList } from '../lib/format'
 import type { WireGuardInterface } from '../lib/types'
@@ -14,7 +19,7 @@ interface Props {
 }
 
 export default function InterfaceFormDialog({ open, onOpenChange, onDone, existing }: Props) {
-  const { push } = useToast()
+  const { toast } = useToast()
   const { t } = useI18n()
   const editing = !!existing
   const [busy, setBusy] = useState(false)
@@ -57,22 +62,20 @@ export default function InterfaceFormDialog({ open, onOpenChange, onDone, existi
           up: body.up,
         }
         const updated = await api.updateInterface(existing!.name, patch)
-        push(t('iface.updated', { name: updated.name }), 'success')
+        toast({ description: t('iface.updated', { name: updated.name }), variant: 'success' })
         onDone(updated)
       } else {
         const created = await api.createInterface(body)
-        push(t('iface.created', { name: created.name }), 'success')
+        toast({ description: t('iface.created', { name: created.name }), variant: 'success' })
         onDone(created)
       }
       onOpenChange(false)
     } catch (err) {
-      push(String(err), 'error')
+      toast({ description: String(err), variant: 'destructive' })
     } finally {
       setBusy(false)
     }
   }
-
-  const checkRow = 'flex items-center justify-between rounded-lg border border-edge2 bg-inset px-3 py-2.5'
 
   return (
     <Dialog
@@ -82,23 +85,20 @@ export default function InterfaceFormDialog({ open, onOpenChange, onDone, existi
       description={editing ? t('ifaceForm.editDesc') : t('ifaceForm.createDesc')}
       footer={
         <>
-          <button className="btn-primary" onClick={submit} disabled={busy}>
+          <Button onClick={submit} disabled={busy}>
             {busy ? t('common.saving') : editing ? t('ifaceForm.saveChanges') : t('ifaceForm.create')}
-          </button>
-          <button className="btn-ghost" onClick={() => onOpenChange(false)}>
+          </Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t('common.cancel')}
-          </button>
+          </Button>
         </>
       }
     >
       <form onSubmit={submit} className="space-y-4">
         <div>
-          <label className="label" htmlFor="iface-name">
-            {t('ifaceForm.name')}
-          </label>
-          <input
+          <Label htmlFor="iface-name">{t('ifaceForm.name')}</Label>
+          <Input
             id="iface-name"
-            className="input"
             placeholder="wg0"
             value={name}
             disabled={editing}
@@ -108,12 +108,9 @@ export default function InterfaceFormDialog({ open, onOpenChange, onDone, existi
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="label" htmlFor="iface-port">
-              {t('ifaceForm.listenPort')}
-            </label>
-            <input
+            <Label htmlFor="iface-port">{t('ifaceForm.listenPort')}</Label>
+            <Input
               id="iface-port"
-              className="input"
               type="number"
               min={0}
               max={65535}
@@ -123,12 +120,9 @@ export default function InterfaceFormDialog({ open, onOpenChange, onDone, existi
             />
           </div>
           <div>
-            <label className="label" htmlFor="iface-mtu">
-              {t('ifaceForm.mtu')}
-            </label>
-            <input
+            <Label htmlFor="iface-mtu">{t('ifaceForm.mtu')}</Label>
+            <Input
               id="iface-mtu"
-              className="input"
               type="number"
               min={576}
               max={65535}
@@ -139,40 +133,19 @@ export default function InterfaceFormDialog({ open, onOpenChange, onDone, existi
         </div>
 
         <div>
-          <label className="label" htmlFor="iface-addresses">
-            {t('ifaceForm.addresses')}
-          </label>
-          <textarea
-            id="iface-addresses"
-            className="input mono"
-            rows={2}
-            value={addresses}
-            onChange={(e) => setAddresses(e.target.value)}
-          />
+          <Label htmlFor="iface-addresses">{t('ifaceForm.addresses')}</Label>
+          <Textarea id="iface-addresses" className="mono" rows={2} value={addresses} onChange={(e) => setAddresses(e.target.value)} />
         </div>
 
         <div>
-          <label className="label" htmlFor="iface-dns">
-            {t('ifaceForm.dns')}
-          </label>
-          <textarea
-            id="iface-dns"
-            className="input mono"
-            rows={2}
-            value={dns}
-            onChange={(e) => setDns(e.target.value)}
-          />
+          <Label htmlFor="iface-dns">{t('ifaceForm.dns')}</Label>
+          <Textarea id="iface-dns" className="mono" rows={2} value={dns} onChange={(e) => setDns(e.target.value)} />
         </div>
 
-        <label className={checkRow}>
-          <span className="text-sm text-fg2">{t('ifaceForm.createEnabled')}</span>
-          <input
-            type="checkbox"
-            className="h-4 w-4 accent-sky-500"
-            checked={up}
-            onChange={(e) => setUp(e.target.checked)}
-          />
-        </label>
+        <div className="flex items-center justify-between rounded-lg border bg-secondary px-3 py-2.5">
+          <span className="text-sm">{t('ifaceForm.createEnabled')}</span>
+          <Switch checked={up} onCheckedChange={setUp} />
+        </div>
       </form>
     </Dialog>
   )

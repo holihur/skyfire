@@ -2,62 +2,87 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: light;
-  --c-page: 244 246 250;
-  --c-header: 255 255 255;
-  --c-panel: 255 255 255;
-  --c-panel2: 255 255 255;
-  --c-inset: 241 245 249;
-  --c-edge: 226 232 240;
-  --c-edge2: 203 213 225;
-  --c-edge3: 226 232 240;
-  --c-hover: 15 23 42;
-  --c-shade: 15 23 42;
-  --c-fg: 15 23 42;
-  --c-fg2: 51 65 85;
-  --c-muted: 71 85 105;
-  --c-faint: 100 116 139;
-  --c-ok: 5 150 105;
-  --c-warn: 217 119 6;
-  --c-err: 220 38 38;
-  --c-info: 2 132 199;
-  --c-brand: 2 132 199;
-  --c-scroll: 148 163 184;
+@layer base {
+  :root {
+    color-scheme: light;
+    --background: 244 246 250;
+    --foreground: 15 23 42;
+    --card: 255 255 255;
+    --card-foreground: 15 23 42;
+    --popover: 255 255 255;
+    --popover-foreground: 15 23 42;
+    --primary: 14 165 233;
+    --primary-foreground: 255 255 255;
+    --secondary: 241 245 249;
+    --secondary-foreground: 51 65 85;
+    --muted: 241 245 249;
+    --muted-foreground: 71 85 105;
+    --accent: 241 245 249;
+    --accent-foreground: 15 23 42;
+    --destructive: 220 38 38;
+    --destructive-foreground: 255 255 255;
+    --border: 226 232 240;
+    --input: 203 213 225;
+    --ring: 14 165 233;
+    --success: 5 150 105;
+    --success-foreground: 255 255 255;
+    --warning: 217 119 6;
+    --warning-foreground: 255 255 255;
+    --info: 2 132 199;
+    --info-foreground: 255 255 255;
+    --radius: 0.75rem;
+    --scroll: 148 163 184;
+  }
+
+  .dark {
+    color-scheme: dark;
+    --background: 7 13 26;
+    --foreground: 255 255 255;
+    --card: 14 25 48;
+    --card-foreground: 255 255 255;
+    --popover: 13 24 48;
+    --popover-foreground: 255 255 255;
+    --primary: 14 165 233;
+    --primary-foreground: 255 255 255;
+    --secondary: 10 20 38;
+    --secondary-foreground: 203 213 225;
+    --muted: 10 20 38;
+    --muted-foreground: 148 163 184;
+    --accent: 10 20 38;
+    --accent-foreground: 255 255 255;
+    --destructive: 220 38 38;
+    --destructive-foreground: 255 255 255;
+    --border: 30 42 69;
+    --input: 38 52 80;
+    --ring: 56 189 248;
+    --success: 110 231 183;
+    --success-foreground: 6 32 22;
+    --warning: 252 211 77;
+    --warning-foreground: 40 24 2;
+    --info: 125 211 252;
+    --info-foreground: 4 22 36;
+    --scroll: 51 65 85;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
 }
 
-.dark {
-  color-scheme: dark;
-  --c-page: 7 13 26;
-  --c-header: 10 20 38;
-  --c-panel: 14 25 48;
-  --c-panel2: 13 24 48;
-  --c-inset: 10 20 38;
-  --c-edge: 30 42 69;
-  --c-edge2: 38 52 80;
-  --c-edge3: 22 31 51;
-  --c-hover: 255 255 255;
-  --c-shade: 0 0 0;
-  --c-fg: 255 255 255;
-  --c-fg2: 203 213 225;
-  --c-muted: 148 163 184;
-  --c-faint: 100 116 139;
-  --c-ok: 110 231 183;
-  --c-warn: 252 211 77;
-  --c-err: 252 165 165;
-  --c-info: 125 211 252;
-  --c-brand: 125 211 252;
-  --c-scroll: 51 65 85;
-}
-
-html,
-body,
-#root {
-  height: 100%;
-}
-
-body {
-  @apply bg-page text-fg antialiased;
+@layer components {
+  .mono {
+    @apply font-mono text-xs;
+  }
 }
 
 ::-webkit-scrollbar {
@@ -69,34 +94,5 @@ body {
 }
 ::-webkit-scrollbar-thumb {
   border-radius: 9999px;
-  background-color: rgb(var(--c-scroll) / 0.6);
-}
-
-@layer components {
-  .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg text-sm font-medium transition
-           focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 disabled:opacity-50;
-  }
-  .btn-primary {
-    @apply btn bg-gradient-to-b from-[#0ea5e9] to-[#0284c7] px-4 py-2 text-white shadow-lg shadow-sky-900/40 hover:brightness-110;
-  }
-  .btn-ghost {
-    @apply btn border border-edge2 bg-panel2 px-3 py-1.5 text-fg2 hover:bg-hover/5 hover:text-fg;
-  }
-  .btn-danger {
-    @apply btn border border-err/50 bg-err/10 px-3 py-1.5 text-err hover:bg-err/20 hover:text-err;
-  }
-  .input {
-    @apply w-full rounded-lg border border-edge2 bg-inset px-3 py-2 text-sm text-fg
-           placeholder:text-faint focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30;
-  }
-  .label {
-    @apply mb-1.5 block text-xs font-medium uppercase tracking-wide text-muted;
-  }
-  .card {
-    @apply rounded-2xl border border-edge bg-panel shadow-sm shadow-shade/5;
-  }
-  .mono {
-    @apply font-mono text-xs;
-  }
+  background-color: rgb(var(--scroll) / 0.6);
 }

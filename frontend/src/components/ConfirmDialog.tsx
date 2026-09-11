@@ -1,4 +1,5 @@
 import Dialog from './Dialog'
+import { Button } from '@/components/ui/button'
 import { useI18n } from '../i18n'
 
 interface Props {
@@ -28,8 +29,8 @@ export default function ConfirmDialog({
       title={title}
       footer={
         <>
-          <button
-            className={danger ? 'btn-danger px-4 py-2' : 'btn-primary'}
+          <Button
+            variant={danger ? 'destructive' : 'default'}
             autoFocus
             onClick={() => {
               onOpenChange(false)
@@ -37,10 +38,10 @@ export default function ConfirmDialog({
             }}
           >
             {confirmLabel ?? t('common.confirm')}
-          </button>
-          <button className="btn-ghost" onClick={() => onOpenChange(false)}>
+          </Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t('common.cancel')}
-          </button>
+          </Button>
         </>
       }
     >

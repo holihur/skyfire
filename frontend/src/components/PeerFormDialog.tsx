@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react'
 import Dialog from './Dialog'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
+import { useToast } from '@/components/ui/use-toast'
 import { api } from '../lib/api'
-import { useToast } from './Toast'
 import { useI18n } from '../i18n'
 import { parseList, joinList } from '../lib/format'
 import type { Peer } from '../lib/types'
@@ -15,7 +20,7 @@ interface Props {
 }
 
 export default function PeerFormDialog({ open, onOpenChange, onDone, ifaceName, peer }: Props) {
-  const { push } = useToast()
+  const { toast } = useToast()
   const { t } = useI18n()
   const editing = !!peer
   const [busy, setBusy] = useState(false)
@@ -68,21 +73,19 @@ export default function PeerFormDialog({ open, onOpenChange, onDone, ifaceName, 
     try {
       if (editing) {
         await api.updatePeer(ifaceName, peer!.publicKey, input)
-        push(t('peer.updated'), 'success')
+        toast({ description: t('peer.updated'), variant: 'success' })
       } else {
         await api.addPeer(ifaceName, input)
-        push(t('peer.created'), 'success')
+        toast({ description: t('peer.created'), variant: 'success' })
       }
       onOpenChange(false)
       onDone?.()
     } catch (err) {
-      push(String(err), 'error')
+      toast({ description: String(err), variant: 'destructive' })
     } finally {
       setBusy(false)
     }
   }
-
-  const row = 'flex items-center justify-between rounded-lg border border-edge2 bg-inset px-3 py-2.5'
 
   return (
     <Dialog
@@ -92,36 +95,30 @@ export default function PeerFormDialog({ open, onOpenChange, onDone, ifaceName, 
       description={editing ? t('peer.editDesc') : t('peer.addDesc')}
       footer={
         <>
-          <button className="btn-primary" onClick={submit} disabled={busy}>
+          <Button onClick={submit} disabled={busy}>
             {busy ? t('common.saving') : t('peer.save')}
-          </button>
-          <button className="btn-ghost" onClick={() => onOpenChange(false)}>
+          </Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t('common.cancel')}
-          </button>
+          </Button>
         </>
       }
     >
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="label" htmlFor="peer-name">
-              {t('peer.label.name')}
-            </label>
-            <input
+            <Label htmlFor="peer-name">{t('peer.label.name')}</Label>
+            <Input
               id="peer-name"
-              className="input"
               placeholder={t('peer.placeholder.name')}
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
           </div>
           <div>
-            <label className="label" htmlFor="peer-address">
-              {t('peer.label.address')}
-            </label>
-            <input
+            <Label htmlFor="peer-address">{t('peer.label.address')}</Label>
+            <Input
               id="peer-address"
-              className="input"
               placeholder={t('peer.placeholder.autoAssign')}
               value={address}
               onChange={(e) => setAddress(e.target.value)}
@@ -131,12 +128,9 @@ export default function PeerFormDialog({ open, onOpenChange, onDone, ifaceName, 
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="label" htmlFor="peer-keepalive">
-              {t('peer.label.keepalive')}
-            </label>
-            <input
+            <Label htmlFor="peer-keepalive">{t('peer.label.keepalive')}</Label>
+            <Input
               id="peer-keepalive"
-              className="input"
               type="number"
               min={0}
               value={keepalive}
@@ -144,12 +138,9 @@ export default function PeerFormDialog({ open, onOpenChange, onDone, ifaceName, 
             />
           </div>
           <div>
-            <label className="label" htmlFor="peer-endpoint">
-              {t('peer.label.endpoint')}
-            </label>
-            <input
+            <Label htmlFor="peer-endpoint">{t('peer.label.endpoint')}</Label>
+            <Input
               id="peer-endpoint"
-              className="input"
               placeholder={t('peer.placeholder.endpoint')}
               value={endpoint}
               onChange={(e) => setEndpoint(e.target.value)}
@@ -158,70 +149,44 @@ export default function PeerFormDialog({ open, onOpenChange, onDone, ifaceName, 
         </div>
 
         <div>
-          <label className="label" htmlFor="peer-routes">
-            {t('peer.label.clientRoutes')}
-          </label>
-          <textarea
-            id="peer-routes"
-            className="input mono"
-            rows={2}
-            value={clientRoutes}
-            onChange={(e) => setClientRoutes(e.target.value)}
-          />
+          <Label htmlFor="peer-routes">{t('peer.label.clientRoutes')}</Label>
+          <Textarea id="peer-routes" className="mono" rows={2} value={clientRoutes} onChange={(e) => setClientRoutes(e.target.value)} />
         </div>
 
         <div>
-          <label className="label" htmlFor="peer-client-dns">
-            {t('peer.label.clientDns')}
-          </label>
-          <textarea
-            id="peer-client-dns"
-            className="input mono"
-            rows={2}
-            value={dns}
-            onChange={(e) => setDns(e.target.value)}
-          />
+          <Label htmlFor="peer-client-dns">{t('peer.label.clientDns')}</Label>
+          <Textarea id="peer-client-dns" className="mono" rows={2} value={dns} onChange={(e) => setDns(e.target.value)} />
         </div>
 
         <div>
-          <label className="label" htmlFor="peer-desc">
-            {t('peer.label.description')}
-          </label>
-          <input
+          <Label htmlFor="peer-desc">{t('peer.label.description')}</Label>
+          <Input
             id="peer-desc"
-            className="input"
             placeholder={t('peer.placeholder.notes')}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
         </div>
 
-        <label className={row}>
-          <span className="text-sm text-fg2">{t('peer.enabled')}</span>
-          <input
-            type="checkbox"
-            className="h-4 w-4 accent-sky-500"
-            checked={enabled}
-            onChange={(e) => setEnabled(e.target.checked)}
-          />
-        </label>
+        <div className="flex items-center justify-between rounded-lg border bg-secondary px-3 py-2.5">
+          <span className="text-sm">{t('peer.enabled')}</span>
+          <Switch checked={enabled} onCheckedChange={setEnabled} />
+        </div>
 
-        <div className="rounded-lg border border-edge2 bg-inset p-3">
-          <label className="flex cursor-pointer items-center justify-between">
-            <span className="text-sm text-fg2">{t('peer.usePsk')}</span>
-            <input
-              type="checkbox"
-              className="h-4 w-4 accent-sky-500"
+        <div className="rounded-lg border bg-secondary p-3">
+          <div className="flex cursor-pointer items-center justify-between">
+            <span className="text-sm">{t('peer.usePsk')}</span>
+            <Switch
               checked={usePsk}
-              onChange={(e) => {
-                setUsePsk(e.target.checked)
-                if (e.target.checked && !psk && !editing) setPsk('generate')
+              onCheckedChange={(v) => {
+                setUsePsk(v)
+                if (v && !psk && !editing) setPsk('generate')
               }}
             />
-          </label>
+          </div>
           {usePsk && (
-            <input
-              className="input mono mt-2"
+            <Input
+              className="mono mt-2"
               placeholder={t('peer.placeholder.psk')}
               value={psk}
               onChange={(e) => setPsk(e.target.value)}
@@ -230,15 +195,10 @@ export default function PeerFormDialog({ open, onOpenChange, onDone, ifaceName, 
         </div>
 
         {editing && (
-          <label className="flex cursor-pointer items-center justify-between rounded-lg border border-warn/40 bg-warn/10 px-3 py-2.5">
-            <span className="text-sm text-warn">{t('peer.rotateKeys')}</span>
-            <input
-              type="checkbox"
-              className="h-4 w-4 accent-amber-500"
-              checked={rotateKeys}
-              onChange={(e) => setRotateKeys(e.target.checked)}
-            />
-          </label>
+          <div className="flex items-center justify-between rounded-lg border border-warning/40 bg-warning/10 px-3 py-2.5">
+            <span className="text-sm text-warning">{t('peer.rotateKeys')}</span>
+            <Switch checked={rotateKeys} onCheckedChange={setRotateKeys} />
+          </div>
         )}
       </div>
     </Dialog>

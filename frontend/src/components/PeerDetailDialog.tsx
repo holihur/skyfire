@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import * as Tabs from '@radix-ui/react-tabs'
-import { CopyIcon, DownloadIcon } from '@radix-ui/react-icons'
+import { Copy, Download } from 'lucide-react'
 import Dialog from './Dialog'
+import { Button } from '@/components/ui/button'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useToast } from '@/components/ui/use-toast'
 import { api, openDownload } from '../lib/api'
-import { useToast } from './Toast'
 import { useI18n } from '../i18n'
 import { fmtBytes, fmtAge, shortKey } from '../lib/format'
 import type { Peer } from '../lib/types'
@@ -18,7 +19,7 @@ interface Props {
 }
 
 export default function PeerDetailDialog({ open, onOpenChange, ifaceName, peer, onEdited, onDeleted }: Props) {
-  const { push } = useToast()
+  const { toast } = useToast()
   const { t, lang } = useI18n()
   const [tab, setTab] = useState('qr')
   const [config, setConfig] = useState('')
@@ -29,7 +30,7 @@ export default function PeerDetailDialog({ open, onOpenChange, ifaceName, peer, 
       const cfg = await api.getText(api.peerConfigUrl(ifaceName, peer.publicKey))
       setConfig(cfg)
     } catch (err) {
-      push(String(err), 'error')
+      toast({ description: String(err), variant: 'destructive' })
     }
   }
 
@@ -37,9 +38,9 @@ export default function PeerDetailDialog({ open, onOpenChange, ifaceName, peer, 
     if (!config) await loadConfig()
     try {
       await navigator.clipboard.writeText(config)
-      push(t('peerDetail.confCopied'), 'success')
+      toast({ description: t('peerDetail.confCopied'), variant: 'success' })
     } catch {
-      push(t('common.clipboardUnavailable'), 'error')
+      toast({ description: t('common.clipboardUnavailable'), variant: 'destructive' })
     }
   }
 
@@ -48,14 +49,11 @@ export default function PeerDetailDialog({ open, onOpenChange, ifaceName, peer, 
       await api.deletePeer(ifaceName, peer.publicKey)
       onDeleted?.(peer.publicKey)
       onOpenChange(false)
-      push(t('peerDetail.removed'), 'success')
+      toast({ description: t('peerDetail.removed'), variant: 'success' })
     } catch (err) {
-      push(String(err), 'error')
+      toast({ description: String(err), variant: 'destructive' })
     }
   }
-
-  const tabTrigger =
-    'rounded-lg px-3 py-1.5 text-sm text-muted transition hover:text-fg data-selected:bg-hover/10 data-selected:text-fg'
 
   return (
     <Dialog
@@ -67,56 +65,47 @@ export default function PeerDetailDialog({ open, onOpenChange, ifaceName, peer, 
       footer={
         <div className="flex items-center gap-3">
           <div className="mr-auto flex gap-2">
-            <button className="btn-ghost" onClick={() => onEdited?.()}>
+            <Button variant="outline" onClick={() => onEdited?.()}>
               {t('peerDetail.edit')}
-            </button>
-            <button className="btn-danger" onClick={() => setConfirmDelete(true)}>
+            </Button>
+            <Button variant="destructive" onClick={() => setConfirmDelete(true)}>
               {t('iface.delete')}
-            </button>
+            </Button>
           </div>
-          <button className="btn-ghost" onClick={copyConfig}>
-            <CopyIcon className="h-4 w-4" /> {t('common.copy')}
-          </button>
-          <button
-            className="btn-ghost"
-            onClick={() => openDownload(api.peerConfigUrl(ifaceName, peer.publicKey))}
-          >
-            <DownloadIcon className="h-4 w-4" /> {t('common.download')}
-          </button>
+          <Button variant="outline" onClick={copyConfig}>
+            <Copy /> {t('common.copy')}
+          </Button>
+          <Button variant="outline" onClick={() => openDownload(api.peerConfigUrl(ifaceName, peer.publicKey))}>
+            <Download /> {t('common.download')}
+          </Button>
         </div>
       }
     >
       {confirmDelete && (
-        <div className="mb-4 rounded-xl border border-err/60 bg-err/10 p-4">
-          <p className="text-sm text-err">
+        <div className="mb-4 rounded-xl border border-destructive/50 bg-destructive/10 p-4">
+          <p className="text-sm text-destructive">
             {t('peerDetail.removeBody', { name: peer.name })}
           </p>
           <div className="mt-3 flex justify-end gap-2">
-            <button className="btn-ghost" onClick={() => setConfirmDelete(false)}>
+            <Button variant="outline" size="sm" onClick={() => setConfirmDelete(false)}>
               {t('common.cancel')}
-            </button>
-            <button className="btn-danger" onClick={doDelete}>
+            </Button>
+            <Button variant="destructive" size="sm" onClick={doDelete}>
               {t('peerDetail.removeBtn')}
-            </button>
+            </Button>
           </div>
         </div>
       )}
 
-      <Tabs.Root value={tab} onValueChange={setTab}>
-        <Tabs.List className="mb-4 flex gap-1 rounded-xl border border-edge2 bg-inset p-1">
-          <Tabs.Trigger value="qr" className={tabTrigger}>
-            {t('peerDetail.qr')}
-          </Tabs.Trigger>
-          <Tabs.Trigger value="conf" className={tabTrigger}>
-            {t('peerDetail.conf')}
-          </Tabs.Trigger>
-          <Tabs.Trigger value="info" className={tabTrigger}>
-            {t('peerDetail.info')}
-          </Tabs.Trigger>
-        </Tabs.List>
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList className="mb-4">
+          <TabsTrigger value="qr">{t('peerDetail.qr')}</TabsTrigger>
+          <TabsTrigger value="conf">{t('peerDetail.conf')}</TabsTrigger>
+          <TabsTrigger value="info">{t('peerDetail.info')}</TabsTrigger>
+        </TabsList>
 
-        <Tabs.Content value="qr" className="flex flex-col items-center gap-4">
-          <div className="rounded-2xl border border-edge2 bg-white p-4">
+        <TabsContent value="qr" className="flex flex-col items-center gap-4">
+          <div className="rounded-2xl border bg-white p-4">
             <img
               src={api.peerQrUrl(ifaceName, peer.publicKey)}
               alt={`${peer.name} QR`}
@@ -124,16 +113,16 @@ export default function PeerDetailDialog({ open, onOpenChange, ifaceName, peer, 
               onLoad={loadConfig}
             />
           </div>
-          <p className="text-center text-xs text-muted">{t('peerDetail.qrHint')}</p>
-        </Tabs.Content>
+          <p className="text-center text-xs text-muted-foreground">{t('peerDetail.qrHint')}</p>
+        </TabsContent>
 
-        <Tabs.Content value="conf">
-          <pre className="mono max-h-80 overflow-auto rounded-xl border border-edge bg-page p-4 text-fg2">
+        <TabsContent value="conf">
+          <pre className="mono max-h-80 overflow-auto rounded-xl border bg-secondary p-4">
             {config || t('peerDetail.loading')}
           </pre>
-        </Tabs.Content>
+        </TabsContent>
 
-        <Tabs.Content value="info">
+        <TabsContent value="info">
           <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
             <Info label={t('peerDetail.info.name')} value={peer.name} />
             <Info label={t('peerDetail.info.address')} value={peer.address} />
@@ -154,8 +143,8 @@ export default function PeerDetailDialog({ open, onOpenChange, ifaceName, peer, 
               value={peer.persistentKeepalive ? t('peerDetail.info.keepaliveS', { value: peer.persistentKeepalive }) : t('peerDetail.info.keepaliveOff')}
             />
           </dl>
-        </Tabs.Content>
-      </Tabs.Root>
+        </TabsContent>
+      </Tabs>
     </Dialog>
   )
 }
@@ -163,8 +152,8 @@ export default function PeerDetailDialog({ open, onOpenChange, ifaceName, peer, 
 function Info({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <>
-      <dt className="text-xs uppercase tracking-wide text-faint">{label}</dt>
-      <dd className={`break-all text-fg2 ${mono ? 'mono' : ''}`}>{value || '—'}</dd>
+      <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
+      <dd className={`break-all text-secondary-foreground ${mono ? 'mono' : ''}`}>{value || '—'}</dd>
     </>
   )
 }

@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react'
-import { PlusIcon } from '@radix-ui/react-icons'
+import { Plus } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { useToast } from '@/components/ui/use-toast'
 import { api } from '../lib/api'
-import { useToast } from '../components/Toast'
 import { useI18n } from '../i18n'
 import InterfaceCard from '../components/InterfaceCard'
 import InterfaceFormDialog from '../components/InterfaceFormDialog'
 import type { WireGuardInterface } from '../lib/types'
 
 export default function Dashboard() {
-  const { push } = useToast()
+  const { toast } = useToast()
   const { t } = useI18n()
   const [items, setItems] = useState<WireGuardInterface[]>([])
   const [createOpen, setCreateOpen] = useState(false)
@@ -18,7 +20,7 @@ export default function Dashboard() {
     try {
       setItems(await api.interfaces())
     } catch (err) {
-      push(String(err), 'error')
+      toast({ description: String(err), variant: 'destructive' })
     }
   }
 
@@ -33,22 +35,22 @@ export default function Dashboard() {
     <div className="mx-auto max-w-6xl">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-fg">{t('dashboard.title')}</h1>
-          <p className="mt-0.5 text-sm text-muted">{t('dashboard.subtitle')}</p>
+          <h1 className="text-2xl font-semibold text-foreground">{t('dashboard.title')}</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">{t('dashboard.subtitle')}</p>
         </div>
-        <button className="btn-primary" onClick={() => setCreateOpen(true)}>
-          <PlusIcon className="h-4 w-4" /> {t('dashboard.new')}
-        </button>
+        <Button onClick={() => setCreateOpen(true)}>
+          <Plus /> {t('dashboard.new')}
+        </Button>
       </div>
 
       {items.length === 0 ? (
-        <div className="card flex flex-col items-center justify-center gap-4 py-20 text-center">
+        <Card className="flex flex-col items-center justify-center gap-4 py-20 text-center">
           <span className="text-4xl">🛜</span>
-          <p className="text-muted">{t('dashboard.empty')}</p>
-          <button className="btn-primary" onClick={() => setCreateOpen(true)}>
-            <PlusIcon className="h-4 w-4" /> {t('dashboard.createFirst')}
-          </button>
-        </div>
+          <p className="text-muted-foreground">{t('dashboard.empty')}</p>
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus /> {t('dashboard.createFirst')}
+          </Button>
+        </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {items.map((iface) => (

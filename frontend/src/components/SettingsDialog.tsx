@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
 import Dialog from './Dialog'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { useToast } from '@/components/ui/use-toast'
 import { api } from '../lib/api'
-import { useToast } from './Toast'
 import { useI18n } from '../i18n'
 import type { Settings } from '../lib/types'
 
@@ -14,7 +17,7 @@ export default function SettingsDialog({
   onOpenChange: (v: boolean) => void
   onSaved?: () => void
 }) {
-  const { push } = useToast()
+  const { toast } = useToast()
   const { t } = useI18n()
   const [saving, setSaving] = useState(false)
   const [s, setS] = useState<Settings>({ publicEndpoint: '' })
@@ -27,11 +30,11 @@ export default function SettingsDialog({
     setSaving(true)
     try {
       await api.saveSettings(s)
-      push(t('common.saved'), 'success')
+      toast({ description: t('common.saved'), variant: 'success' })
       onOpenChange(false)
       onSaved?.()
     } catch (err) {
-      push(String(err), 'error')
+      toast({ description: String(err), variant: 'destructive' })
     } finally {
       setSaving(false)
     }
@@ -45,28 +48,25 @@ export default function SettingsDialog({
       description={t('common.settingsDesc')}
       footer={
         <>
-          <button className="btn-primary" onClick={save} disabled={saving}>
+          <Button onClick={save} disabled={saving}>
             {saving ? t('common.saving') : t('common.save')}
-          </button>
-          <button className="btn-ghost" onClick={() => onOpenChange(false)}>
+          </Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t('common.cancel')}
-          </button>
+          </Button>
         </>
       }
     >
       <div className="space-y-4">
         <div>
-          <label className="label" htmlFor="public-endpoint">
-            {t('settings.publicEndpoint')}
-          </label>
-          <input
+          <Label htmlFor="public-endpoint">{t('settings.publicEndpoint')}</Label>
+          <Input
             id="public-endpoint"
-            className="input"
             placeholder={t('settings.publicEndpointPh')}
             value={s.publicEndpoint}
             onChange={(e) => setS({ ...s, publicEndpoint: e.target.value })}
           />
-          <p className="mt-1.5 text-xs text-muted">
+          <p className="mt-1.5 text-xs text-muted-foreground">
             {t('settings.publicEndpointHelp')}
           </p>
         </div>
