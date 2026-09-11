@@ -1,0 +1,174 @@
+# Skyfire 桌面客户端（skyfire-client）使用文档
+
+`skyfire-client` 是单文件桌面客户端：内嵌 `wireguard-go`，用系统托盘（或终端）
+一键连接/断开，凭**连接字符串**从服务端拉取配置，无需安装 WireGuard 官方客户端。
+
+- 工作方式：**只做出站请求**。向连接字符串对应的 URL 拉取本次 Peer 的
+  `wg.conf`，在本地建用户态隧道；没有监听端口，也不会被局域网远程配置。
+- 一个进程同一时刻只维护**一个**隧道。
+
+---
+
+## 1. 平台与产物
+
+| 平台 | 产物 | 界面 | 依赖 |
+| --- | --- | --- | --- |
+| Windows amd64 | `skyfire-client-windows-amd64.exe` | 系统托盘（纯 Go，无 cgo） | 真实隧道需 `wintun.dll` 与 exe 同目录 |
+| macOS amd64/arm64 | `skyfire-client-darwin-amd64` / `-arm64` | 系统托盘（需 cgo/Cocoa，CI 在 macOS 构建） | 未公证，首次运行需在「系统设置 → 隐私与安全性」放行 |
+| Linux | 可自行编译 | **仅终端模式**（实验性，用于本地测试） | — |
+
+> Windows arm64 无发布产物（goreleaser 跳过该目标）。
+
+---
+
+## 2. 获取连接字符串
+
+在服务端 Web UI：接口详情 → Peer 详情弹窗 → **Desktop client** 页签 → 复制
+**连接字符串**。它形如：
+
+```
+https://vpn.example.com:51821/api/p/<token>/wg.conf
+```
+
+- 该 URL 用 Peer 的 `clientToken` 鉴权，**免登录**，且**只暴露这一个 Peer**。
+- 局域网测试时可把主机换成服务器局域网 IP，例如
+  `http://192.168.1.10:51821/api/p/<token>/wg.conf`（协议 `http` 亦可）。
+- 连接字符串必须包含 `/api/p/`，否则客户端拒绝保存。
+
+> 想让隧道真正连通，服务端的 `settings.publicEndpoint` 必须是客户端可达的
+> 地址；详见 [服务端文档 · PublicEndpoint](server.md#8-全局设置publicendpoint)。
+
+---
+
+## 3. 安装 / 构建
+
+### 3.1 下载发布产物
+
+从 GitHub Release 下载对应平台文件，Windows 记得把 `wintun.dll` 放在同一目录。
+
+### 3.2 从源码构建
+
+```bash
+# 当前平台（Windows 托盘 / Linux 终端）
+make client
+
+# Windows amd64（含托盘，纯 Go）
+make client-windows
+
+# macOS arm64（托盘需 cgo，在 macOS 上构建）
+make client-darwin
+```
+
+产物输出到仓库根目录。手动构建示例：
+
+```bash
+cd client
+# Windows
+CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o skyfire-client.exe .
+# macOS（托盘，在 macOS 上）
+GOOS=darwin GOARCH=arm64 go build -o skyfire-client .
+```
+
+---
+
+## 4. 命令行参数
+
+| 参数 | 默认 | 说明 |
+| --- | --- | --- |
+| `-connect` | 空 | 连接字符串；保存后供后续运行使用 |
+| `-conf` | 空 | 使用本地 WireGuard `.conf` 文件，改为从文件而非服务端拉取 |
+| `-dry-run` | `false` | 只拉取并校验配置，不建隧道、不改系统 |
+| `-cli` | `false` | 终端模式而非系统托盘 |
+| `-verbose` | `false` | debug 日志 |
+| `-version` | `false` | 打印版本后退出 |
+
+配置文件存放在用户配置目录：
+
+- Linux：`~/.config/skyfire-client/config.json`
+- macOS：`~/Library/Application Support/skyfire-client/config.json`
+- Windows：`%AppData%\skyfire-client\config.json`
+
+同目录还会缓存最近一次成功拉取的配置（`wg.conf`），服务端临时不可达时自动回退使用。
+
+---
+
+## 5. 典型用法
+
+```bash
+# ① 校验配置（推荐首次先跑）：拉取 + 解析，不改系统
+skyfire-client -connect 'https://vpn.example.com:51821/api/p/<token>/wg.conf' -dry-run
+
+# ② 首次连接（托盘）：首次运行会弹框要求输入连接字符串并自动连接
+skyfire-client -connect 'https://vpn.example.com:51821/api/p/<token>/wg.conf'
+
+# ③ 无托盘环境用终端模式（Linux 等），启动即连接，Ctrl+C 断开退出
+skyfire-client -cli -connect 'https://vpn.example.com:51821/api/p/<token>/wg.conf'
+
+# ④ 完全离线：用本地 .conf，不从服务端拉取
+skyfire-client -cli -conf ./peer.conf
+
+# ⑤ 只保存连接字符串，之后再从托盘菜单连（不带 -connect 启动）
+skyfire-client
+```
+
+行为细节：
+
+- **托盘模式**：`-connect` 只负责保存，不会立即连接；首次运行（尚无连接字符串）
+  才会弹框并自动连接。之后用托盘菜单的 Connect 连接。
+- **终端模式（`-cli`）**：启动即连接，阻塞直到 `Ctrl+C` / `SIGTERM`，然后断开。
+- **`-dry-run`**：解析并打印地址、DNS、MTU、Peer、是否全隧道，然后退出。
+- **来源优先级**：`-conf` 本地文件 > 连接字符串拉取 > 磁盘缓存。
+
+---
+
+## 6. 托盘菜单
+
+- **状态行**：Disconnected / Connecting / Connected / Error。
+- **Connect / Disconnect**：切换隧道。
+- **Set connection string…**：输入/更新连接字符串（Windows 用原生输入框，
+  macOS 用 osascript 对话框）。
+- **Quit**：断开并退出。
+
+图标颜色表示状态（绿=已连接）。连接字符串无效时日志会给出提示。
+
+---
+
+## 7. 路由、DNS 与权限
+
+全隧道判定：任一 Peer 的 `AllowedIPs` 含 `0.0.0.0/0` 或 `::/0`。
+
+| 平台 | 全隧道默认路由 | 端点防环 | DNS |
+| --- | --- | --- | --- |
+| Linux | wg-quick 风格策略路由：fwmark + 独立路由表 `51821`（避开 wg-quick 的 51820） | 用 fwmark 规则排除端点自身流量 | **不修改**系统 DNS |
+| Windows | 两条 `/1` 路由（`0.0.0.0/1` + `128.0.0.0/1`） | 见下方限制 | 通过 `netsh` 写接口 DNS，断开时恢复 DHCP |
+| macOS | 两条 `/1` 路由 | 见下方限制 | **不修改** |
+
+权限：
+
+- Windows 真实隧道首次需**管理员权限**（创建 Wintun 网卡）。
+- macOS 未公证会被 Gatekeeper 拦截，需手动放行；建 utun 通常也需相应权限。
+
+> **已知限制**：endpoint 例外路由尚未实现。全隧道下 Windows/macOS 可能出现
+> endpoint 流量误入隧道。MVP 建议先用**分隧道**验证：把 Peer 的
+> `clientRoutes` 只填内网网段（如 `10.42.0.0/24`），不要用 `0.0.0.0/0`。
+
+---
+
+## 8. 多隧道说明
+
+同一台机器**不支持**同时跑多个客户端实例：
+
+- Linux `tunName()` 固定为 `skyfire`，Windows 固定为 `Skyfire`（Wintun 适配器名），
+  第二个实例会因接口重名而失败。
+- 所有实例共用同一个 `os.UserConfigDir()/skyfire-client/config.json`，会互相覆盖。
+- Linux 全隧道共用同一 fwmark / 路由表 `51821`，会相互冲突。
+
+需要连多个服务端时，请分机器、或对客户端做多连接改造。
+
+---
+
+## 9. 相关文档
+
+- [服务端 skyfired](server.md)
+- [REST API](api.md)
+- [常见问题 / 故障排查](faq.md)

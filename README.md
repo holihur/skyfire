@@ -16,6 +16,13 @@ WireGuard 可视化配置管理工具：一个守护进程管理多个 WireGuard
 - 单用户密码登录（Session Cookie）+ 可选 Bearer Token
 - 单一可执行文件（Web UI 内嵌）
 
+## 文档
+
+- [服务端 skyfired 使用文档](docs/server.md)：安装、运行、配置、驱动、Web UI 操作
+- [桌面客户端 skyfire-client 使用文档](docs/client.md)：平台、用法、路由、权限、限制
+- [REST API](docs/api.md)：认证、端点、请求/响应示例
+- [常见问题 / 故障排查](docs/faq.md)
+
 ## 快速安装（纯二进制，无需 Go/Node 工具链）
 
 ```bash
@@ -38,6 +45,20 @@ sudo SKYFIRE_PASSWORD='your-password' bash -c "$(curl -fsSL https://raw.githubus
 - Windows (arm64)：无发布产物（goreleaser 跳过该目标）
 - Windows 服务自启：暂不支持，需手动运行 `skyfired.exe`
 - 从源码构建见下方“开发”（需要 Go ≥ 1.26、Node ≥ 20、pnpm）
+
+### 更新
+
+已安装后，用自更新命令升级到最新发布（校验 checksum + 原子替换，systemd
+下自动重启服务）：
+
+```bash
+sudo skyfire update          # 等同 skyfired update
+skyfire update -check        # 只检查是否有新版本
+sudo skyfire update -version v0.6.0
+```
+
+安装脚本会额外装一个 `skyfire` 别名指向 `skyfired`，因此 `skyfire update` 与
+`skyfired update` 等价。详见[服务端文档](docs/server.md#41-update-子命令)。
 
 ## 桌面客户端（一键连接）
 
@@ -82,6 +103,8 @@ skyfire-client -cli -conf ./peer.conf
 
 ## 手动运行
 
+> 完整参数、驱动说明与 Web UI 操作见 [服务端文档](docs/server.md)。
+
 ```bash
 make demo   # 安全演示模式：mock 驱动 + 示例数据，不碰真实网络
 make        # 构建前端并打包进二进制
@@ -118,7 +141,8 @@ cd frontend && pnpm install && pnpm dev
 ## API
 
 REST API 位于 `/api`，认证方式：`Authorization: Bearer <token>` 或登录后的
-Session Cookie。主要端点：
+Session Cookie。完整文档（含请求/响应示例）见 [docs/api.md](docs/api.md)。
+主要端点：
 
 - `GET/PUT /api/settings` — 全局设置（公网端点等）
 - `GET/POST /api/interfaces` — 接口列表 / 创建
