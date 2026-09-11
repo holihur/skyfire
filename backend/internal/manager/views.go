@@ -65,6 +65,7 @@ type PeerView struct {
 	Name                string    `json:"name"`
 	PublicKey           string    `json:"publicKey"`
 	PresharedKey        string    `json:"presharedKey"`
+	ClientToken         string    `json:"clientToken"`
 	Address             string    `json:"address"`
 	AllowedIPs          []string  `json:"allowedIPs"`
 	ClientRoutes        []string  `json:"clientRoutes"`

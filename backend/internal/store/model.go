@@ -45,6 +45,9 @@ type Peer struct {
 	PrivateKey string `json:"privateKey,omitempty"`
 	// PresharedKey is optional and enabled per peer.
 	PresharedKey string `json:"presharedKey,omitempty"`
+	// ClientToken is a per-peer secret that lets the desktop client fetch its
+	// own config without a login. Generated lazily for legacy data.
+	ClientToken string `json:"clientToken,omitempty"`
 	// Address is the tunnel address assigned to this peer (the /32 entry of
 	// the server AllowedIPs list). Filled automatically if left blank.
 	Address string `json:"address"`

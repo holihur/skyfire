@@ -50,6 +50,17 @@ export default function PeerDetailDialog({ open, onOpenChange, ifaceName, peer, 
     }
   }
 
+  const connectString = `${window.location.origin}${api.tokenConfigUrl(peer.clientToken)}`
+
+  const copyConnectString = async () => {
+    try {
+      await navigator.clipboard.writeText(connectString)
+      toast({ description: t('peerDetail.connectCopied'), variant: 'success' })
+    } catch {
+      toast({ description: t('common.clipboardUnavailable'), variant: 'destructive' })
+    }
+  }
+
   const doDelete = async () => {
     try {
       await api.deletePeer(ifaceName, peer.publicKey)
@@ -107,6 +118,7 @@ export default function PeerDetailDialog({ open, onOpenChange, ifaceName, peer, 
         <TabsList className="mb-4">
           <TabsTrigger value="qr">{t('peerDetail.qr')}</TabsTrigger>
           <TabsTrigger value="conf">{t('peerDetail.conf')}</TabsTrigger>
+          <TabsTrigger value="client">{t('peerDetail.client')}</TabsTrigger>
           <TabsTrigger value="info">{t('peerDetail.info')}</TabsTrigger>
         </TabsList>
 
@@ -135,6 +147,20 @@ export default function PeerDetailDialog({ open, onOpenChange, ifaceName, peer, 
               {config || t('peerDetail.loading')}
             </pre>
           )}
+        </TabsContent>
+
+        <TabsContent value="client">
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-muted-foreground">{t('peerDetail.clientHint')}</p>
+            <div className="flex items-center gap-2">
+              <code className="mono flex-1 break-all rounded-xl border bg-secondary px-3 py-2 text-xs">
+                {connectString}
+              </code>
+              <Button variant="outline" size="icon" onClick={copyConnectString} title={t('common.copy')}>
+                <Copy />
+              </Button>
+            </div>
+          </div>
         </TabsContent>
 
         <TabsContent value="info">

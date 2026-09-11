@@ -166,6 +166,11 @@ const en = {
     'Remove {name}? Its client configuration will stop working.',
   'peerDetail.removed': 'Peer removed',
   'peerDetail.confCopied': 'Configuration copied',
+  'peerDetail.client': 'Desktop client',
+  'peerDetail.clientHint':
+    'Paste this connection string into the Skyfire desktop client for one-click connect. The link works without a login and only exposes this peer.',
+  'peerDetail.connectString': 'Connection string',
+  'peerDetail.connectCopied': 'Connection string copied',
   'peerDetail.info.name': 'Name',
   'peerDetail.info.address': 'Address',
   'peerDetail.info.pubkey': 'Public key',
@@ -353,6 +358,11 @@ const zh: Record<string, string> = {
   'peerDetail.removeBody': '移除 {name}？其客户端配置将失效。',
   'peerDetail.removed': '对端已移除',
   'peerDetail.confCopied': '配置已复制',
+  'peerDetail.client': '桌面客户端',
+  'peerDetail.clientHint':
+    '将此连接字符串粘贴到 Skyfire 桌面客户端即可一键连接。该链接无需登录，仅暴露此对端。',
+  'peerDetail.connectString': '连接字符串',
+  'peerDetail.connectCopied': '连接字符串已复制',
   'peerDetail.info.name': '名称',
   'peerDetail.info.address': '地址',
   'peerDetail.info.pubkey': '公钥',

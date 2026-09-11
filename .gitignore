@@ -18,3 +18,7 @@ backend/internal/web/dist/assets/
 .DS_Store
 dist/
 .omo/
+
+# Local secrets / remote test hosts (never commit)
+.env
+.env.*

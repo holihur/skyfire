@@ -92,6 +92,11 @@ func (s *Server) routes() {
 	mux.HandleFunc("GET /api/interfaces/{name}/peers/{key}/config", s.handlePeerConfig)
 	mux.HandleFunc("GET /api/interfaces/{name}/peers/{key}/config.png", s.handlePeerQR)
 
+	// Token-scoped client endpoints: reachable without a login. The token
+	// itself is the credential and only exposes a single peer's config.
+	mux.HandleFunc("GET /api/p/{token}/wg.conf", s.handleTokenConfig)
+	mux.HandleFunc("GET /api/p/{token}/wg.png", s.handleTokenQR)
+
 	s.mux = mux
 }
 
@@ -314,6 +319,37 @@ func (s *Server) handlePeerQR(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cfg, err := s.mgr.ClientConfig(r.PathValue("name"), pub)
+	if err != nil {
+		writeManagerError(w, err)
+		return
+	}
+	png, err := manager.ConfigQR(cfg)
+	if err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Cache-Control", "no-store")
+	_, _ = w.Write(png)
+}
+
+// handleTokenConfig serves a single peer's client config identified by its
+// client token, without requiring a login.
+func (s *Server) handleTokenConfig(w http.ResponseWriter, r *http.Request) {
+	cfg, err := s.mgr.ClientConfigByToken(r.PathValue("token"))
+	if err != nil {
+		writeManagerError(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Content-Disposition", attachment("wg.conf"))
+	_, _ = w.Write([]byte(cfg))
+}
+
+// handleTokenQR serves a single peer's client config as a QR image,
+// identified by its client token and without requiring a login.
+func (s *Server) handleTokenQR(w http.ResponseWriter, r *http.Request) {
+	cfg, err := s.mgr.ClientConfigByToken(r.PathValue("token"))
 	if err != nil {
 		writeManagerError(w, err)
 		return

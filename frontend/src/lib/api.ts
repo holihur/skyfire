@@ -101,6 +101,9 @@ export const api = {
     `/api/interfaces/${iface}/peers/${urlKey(pub)}/config`,
   peerQrUrl: (iface: string, pub: string) =>
     `/api/interfaces/${iface}/peers/${urlKey(pub)}/config.png`,
+  // Token-scoped client config: the connection string handed to the desktop
+  // client. It works without a login and exposes only this peer.
+  tokenConfigUrl: (token: string) => `/api/p/${token}/wg.conf`,
   serverConfigUrl: (iface: string) => `/api/interfaces/${iface}/config`,
   privateKey: (iface: string) => request<{ privateKey: string }>(`/api/interfaces/${iface}/private-key`),
 }

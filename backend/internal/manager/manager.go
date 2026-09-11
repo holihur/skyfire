@@ -385,6 +385,9 @@ func (m *Manager) CreatePeer(ifaceName string, in *PeerInput) (*PeerView, error)
 		CreatedAt:           time.Now(),
 		UpdatedAt:           time.Now(),
 	}
+	if tok, err := genClientToken(); err == nil {
+		peer.ClientToken = tok
+	}
 	if peer.Name == "" {
 		peer.Name = "peer"
 	}
@@ -623,6 +626,9 @@ func (m *Manager) Get(name string) (*InterfaceView, error) {
 }
 
 func (m *Manager) interfaceViewLocked(iface *store.Interface) (*InterfaceView, error) {
+	if err := m.ensureClientTokensLocked(iface); err != nil {
+		return nil, err
+	}
 	st := m.driverStatus(iface.Name)
 	v := &InterfaceView{
 		Name:       iface.Name,
@@ -647,6 +653,7 @@ func (m *Manager) interfaceViewLocked(iface *store.Interface) (*InterfaceView, e
 			Name:                p.Name,
 			PublicKey:           p.PublicKey,
 			PresharedKey:        p.PresharedKey,
+			ClientToken:         p.ClientToken,
 			Address:             p.Address,
 			AllowedIPs:          nonNil(p.AllowedIPs),
 			ClientRoutes:        nonNil(p.ClientRoutes),
@@ -702,6 +709,45 @@ func (m *Manager) Settings() store.Settings {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.store.Settings
+}
+
+// ensureClientTokensLocked generates and persists missing client tokens for
+// legacy peers. Callers must hold m.mu.
+func (m *Manager) ensureClientTokensLocked(iface *store.Interface) error {
+	dirty := false
+	for _, p := range iface.Peers {
+		if p.ClientToken == "" {
+			tok, err := genClientToken()
+			if err != nil {
+				return err
+			}
+			p.ClientToken = tok
+			dirty = true
+		}
+	}
+	if dirty {
+		return m.persist()
+	}
+	return nil
+}
+
+// ClientConfigByToken returns the client configuration for the peer holding
+// the given client token. It never generates tokens: the token must already
+// exist (the admin UI surfaces it), so a token is the only credential needed.
+func (m *Manager) ClientConfigByToken(token string) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if token == "" {
+		return "", fmt.Errorf("%w: peer", ErrNotFound)
+	}
+	for _, iface := range m.store.Interfaces {
+		for _, p := range iface.Peers {
+			if p.ClientToken != "" && p.ClientToken == token {
+				return ClientConfig(m.store.Settings, iface, p), nil
+			}
+		}
+	}
+	return "", fmt.Errorf("%w: peer", ErrNotFound)
 }
 
 // UpdateSettings saves daemon settings.

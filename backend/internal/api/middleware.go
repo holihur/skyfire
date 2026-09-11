@@ -63,9 +63,13 @@ func (s *Server) authorized(r *http.Request) bool {
 func (s *Server) auth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		isAPI := strings.HasPrefix(r.URL.Path, "/api/")
-		// login/logout are always reachable; the static SPA shell is public so
-		// the login screen can load. Everything else under /api requires auth.
-		if !isAPI || r.URL.Path == "/api/login" || r.URL.Path == "/api/logout" {
+		// login/logout and the token-scoped client config endpoints are always
+		// reachable; the static SPA shell is public so the login screen can
+		// load. Everything else under /api requires auth.
+		if !isAPI ||
+			r.URL.Path == "/api/login" ||
+			r.URL.Path == "/api/logout" ||
+			strings.HasPrefix(r.URL.Path, "/api/p/") {
 			next.ServeHTTP(w, r)
 			return
 		}

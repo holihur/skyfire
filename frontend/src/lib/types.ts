@@ -2,6 +2,7 @@ export interface Peer {
   name: string
   publicKey: string
   presharedKey: string
+  clientToken: string
   address: string
   allowedIPs: string[]
   clientRoutes: string[]
