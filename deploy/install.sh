@@ -81,6 +81,13 @@ main() {
   mv -f "$DEST.tmp" "$DEST"
   info "binary installed at $DEST"
 
+  # `skyfire` is a convenience alias for the daemon binary, so `skyfire update`
+  # (and any future subcommands) can be invoked under the product name.
+  if [[ "$os" != "windows" ]]; then
+    ln -sf "$(basename "$DEST")" "$PREFIX/bin/skyfire"
+    info "installed command alias: $PREFIX/bin/skyfire -> $(basename "$DEST")"
+  fi
+
   if [[ "$os" != "linux" || ! -d /run/systemd/system ]]; then
     info "done. Run:  $DEST -demo   (mock mode, no privileges)"
     info "real tunnels need Wintun (Windows) / CAP_NET_ADMIN; configure with -config <path>"

@@ -38,6 +38,7 @@ client-darwin:
 install: all
 	install -d $(DESTDIR)$(BINROOT) $(DESTDIR)$(ETC)
 	install -m 0755 $(BINARY) $(DESTDIR)$(BINROOT)/skyfired
+	ln -sf skyfired $(DESTDIR)$(BINROOT)/skyfire
 	install -m 0644 -D deploy/skyfire.service $(DESTDIR)/lib/systemd/system/skyfire.service
 	echo "Installed. Password is generated at first start and printed to the journal:"
 	echo "  journalctl -u skyfire -n 20"

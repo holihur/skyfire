@@ -36,6 +36,12 @@ import (
 var version = "dev"
 
 func main() {
+	// `skyfired update` (aliased as `skyfire update`) is a self-contained
+	// subcommand: handle it before the daemon's own flag parsing.
+	if len(os.Args) > 1 && os.Args[1] == "update" {
+		os.Exit(runUpdate(os.Args[2:]))
+	}
+
 	var (
 		configPath = flag.String("config", "", "path to the persisted configuration file (auto-resolved when empty)")
 		addr       = flag.String("addr", ":51821", "listen address for the web server")
@@ -47,8 +53,20 @@ func main() {
 		static     = flag.String("static", "", "path to the built frontend directory to serve")
 		demo       = flag.Bool("demo", false, "start with a mock driver and sample data (no system changes)")
 		verbose    = flag.Bool("verbose", false, "debug logging")
+		showVer    = flag.Bool("version", false, "print the version and exit")
 	)
+	flag.Usage = func() {
+		out := flag.CommandLine.Output()
+		fmt.Fprint(out, "Usage: skyfired [flags]\n")
+		fmt.Fprint(out, "       skyfired update [flags]   self-update to the latest release\n\n")
+		flag.PrintDefaults()
+	}
 	flag.Parse()
+
+	if *showVer {
+		fmt.Println("skyfired", version)
+		return
+	}
 
 	level := slog.LevelInfo
 	if *verbose {
