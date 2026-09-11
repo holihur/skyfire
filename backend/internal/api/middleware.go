@@ -184,6 +184,17 @@ func logging(log *slog.Logger, next http.Handler) http.Handler {
 	})
 }
 
+// setStaticCache marks content-hashed assets as immutable and everything else
+// (index.html / SPA shell) as revalidated, so an upgrade is never masked by a
+// stale cached bundle in the browser.
+func setStaticCache(w http.ResponseWriter, name string) {
+	if strings.HasPrefix(strings.TrimPrefix(name, "/"), "assets/") {
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		return
+	}
+	w.Header().Set("Cache-Control", "no-cache")
+}
+
 // spaHandler serves the built frontend with an index.html fallback for the
 // client-side router.
 func spaHandler(dir string) http.Handler {
@@ -198,6 +209,7 @@ func spaHandler(dir string) http.Handler {
 			return
 		}
 		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			setStaticCache(w, r.URL.Path)
 			http.ServeFile(w, r, candidate)
 			return
 		}
@@ -205,6 +217,7 @@ func spaHandler(dir string) http.Handler {
 			http.NotFound(w, r)
 			return
 		}
+		setStaticCache(w, "index.html")
 		http.ServeFile(w, r, index)
 	})
 }
@@ -252,6 +265,7 @@ func spaFS(fsys fs.FS) http.Handler {
 			return
 		}
 		w.Header().Set("Content-Type", mime.TypeByExtension(filepath.Ext(name)))
+		setStaticCache(w, name)
 		if rs, ok := f.(io.ReadSeeker); ok {
 			http.ServeContent(w, r, name, fi.ModTime(), rs)
 			return
