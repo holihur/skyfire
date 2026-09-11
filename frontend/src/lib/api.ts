@@ -61,7 +61,7 @@ export const api = {
       body: JSON.stringify({ username, password }),
     }),
   logout: () => request<{ ok: boolean }>('/api/logout', { method: 'POST' }),
-  health: () => request<{ status: string; driver: string; dryRun: boolean }>('/api/health'),
+  health: () => request<{ status: string; driver: string; dryRun: boolean; version: string }>('/api/health'),
   getText: (url: string) => request<string>(url),
   settings: () => request<Settings>('/api/settings'),
   saveSettings: (s: Settings) =>

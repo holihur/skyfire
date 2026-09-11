@@ -10,6 +10,7 @@ import {
   Pencil,
   Plus,
   Smartphone,
+  Terminal,
   Trash2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -135,6 +136,12 @@ export default function InterfaceDetail() {
       toast({ description: t('common.clipboardUnavailable'), variant: 'destructive' })
     }
   }
+
+  const copyConnectCommand = (p: Peer) =>
+    void copy(
+      `skyfire-client -connect '${window.location.origin}/api/p/${p.clientToken}/wg.conf'`,
+      t('peerDetail.command'),
+    )
 
   const deletePeer = async (p: Peer) => {
     try {
@@ -321,6 +328,9 @@ export default function InterfaceDetail() {
                             <DropdownMenuContent align="end" sideOffset={6} className="min-w-40">
                               <DropdownMenuItem onSelect={() => setPeerForm({ open: true, peer: p })}>
                                 <Pencil /> {t('iface.editPeer')}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => copyConnectCommand(p)}>
+                                <Terminal /> {t('iface.peer.copyConnect')}
                               </DropdownMenuItem>
                               <DropdownMenuItem variant="destructive" onSelect={() => setDeletePeerTarget(p)}>
                                 <Trash2 /> {t('iface.delete')}
