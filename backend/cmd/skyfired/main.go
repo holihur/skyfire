@@ -39,7 +39,7 @@ func main() {
 	var (
 		configPath = flag.String("config", "", "path to the persisted configuration file (auto-resolved when empty)")
 		addr       = flag.String("addr", ":51821", "listen address for the web server")
-		driverName = flag.String("driver", "userspace", "wireguard backend: userspace | kernel | mock")
+		driverName = flag.String("driver", "netstack", "wireguard backend: netstack | userspace | kernel | mock")
 		dryRun     = flag.Bool("dry-run", false, "log every live operation without applying it (safe preview)")
 		token      = flag.String("token", "", "bearer token required for API access (empty disables auth)")
 		username   = flag.String("username", "admin", "username for the single-user web login")
@@ -164,6 +164,8 @@ func main() {
 
 func buildDriver(name string) (driver.Driver, error) {
 	switch strings.ToLower(name) {
+	case "netstack":
+		return driver.NewNetstack(), nil
 	case "userspace":
 		return driver.NewUserspace(), nil
 	case "kernel":
@@ -171,7 +173,7 @@ func buildDriver(name string) (driver.Driver, error) {
 	case "mock":
 		return driver.NewMock(), nil
 	default:
-		return nil, fmt.Errorf("unknown driver %q (want userspace | kernel | mock)", name)
+		return nil, fmt.Errorf("unknown driver %q (want netstack | userspace | kernel | mock)", name)
 	}
 }
 

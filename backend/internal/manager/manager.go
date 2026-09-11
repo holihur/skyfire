@@ -86,7 +86,8 @@ func (m *Manager) applyInterface(iface *store.Interface) error {
 		return fmt.Errorf("configure %s: %w", iface.Name, err)
 	}
 	v4, v6 := defaultRouteFamilies(allowedIPs(iface))
-	if iface.MTU > 0 {
+	osStack := m.driver.UsesOSStack()
+	if osStack && iface.MTU > 0 {
 		if err := m.driver.SetMTU(iface.Name, iface.MTU); err != nil {
 			m.log.Warn("set mtu", "iface", iface.Name, "error", err)
 		}
@@ -100,21 +101,25 @@ func (m *Manager) applyInterface(iface *store.Interface) error {
 		if err := m.driver.Up(iface.Name); err != nil {
 			return fmt.Errorf("up %s: %w", iface.Name, err)
 		}
-		if err := driver.EnsureForwarding(); err != nil {
-			m.log.Warn("enable ip forwarding", "iface", iface.Name, "error", err)
-		}
-		if err := driver.AddRoutes(iface.Name, allowedIPs(iface)); err != nil {
-			m.log.Warn("install routes", "iface", iface.Name, "error", err)
-		}
-		if v4 || v6 {
-			if err := driver.AddDefaultRoutes(iface.Name, v4, v6); err != nil {
-				m.log.Warn("install default routes", "iface", iface.Name, "error", err)
+		if osStack {
+			if err := driver.EnsureForwarding(); err != nil {
+				m.log.Warn("enable ip forwarding", "iface", iface.Name, "error", err)
+			}
+			if err := driver.AddRoutes(iface.Name, allowedIPs(iface)); err != nil {
+				m.log.Warn("install routes", "iface", iface.Name, "error", err)
+			}
+			if v4 || v6 {
+				if err := driver.AddDefaultRoutes(iface.Name, v4, v6); err != nil {
+					m.log.Warn("install default routes", "iface", iface.Name, "error", err)
+				}
 			}
 		}
 		return nil
 	}
-	driver.RemoveRoutes(iface.Name, allowedIPs(iface))
-	driver.RemoveDefaultRoutes(iface.Name, v4, v6)
+	if osStack {
+		driver.RemoveRoutes(iface.Name, allowedIPs(iface))
+		driver.RemoveDefaultRoutes(iface.Name, v4, v6)
+	}
 	return m.driver.Down(iface.Name)
 }
 

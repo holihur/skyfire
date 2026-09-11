@@ -27,6 +27,8 @@ func NewMock() *Mock { return &Mock{devs: make(map[string]*mockDevice)} }
 
 func (m *Mock) Name() string { return "mock" }
 
+func (m *Mock) UsesOSStack() bool { return false }
+
 func (m *Mock) Close() error {
 	m.Lock()
 	defer m.Unlock()

@@ -91,6 +91,11 @@ func RouteTargets(allowed []string) []string {
 // Driver manages the full lifecycle of a wireguard interface.
 type Driver interface {
 	Name() string
+	// UsesOSStack reports whether packet forwarding relies on the OS network
+	// stack (routes on a kernel interface, ip_forward, NAT). When false the
+	// driver handles forwarding itself (e.g. the netstack backend) and the
+	// manager must not install any OS plumbing.
+	UsesOSStack() bool
 	// Create creates the wireguard device and its link. Idempotent.
 	Create(name string, mtu int) error
 	// Configure applies the full device + peer configuration

@@ -38,6 +38,8 @@ func NewUserspace() *Userspace {
 
 func (u *Userspace) Name() string { return "userspace" }
 
+func (u *Userspace) UsesOSStack() bool { return true }
+
 func (u *Userspace) Open() error { return nil }
 
 func (u *Userspace) Close() error {

@@ -30,6 +30,8 @@ func NewKernel() (Driver, error) {
 
 func (k *Kernel) Name() string { return "kernel" }
 
+func (k *Kernel) UsesOSStack() bool { return true }
+
 func (k *Kernel) Close() error { return k.client.Close() }
 
 func (k *Kernel) Create(name string, mtu int) error {

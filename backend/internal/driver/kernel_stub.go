@@ -8,5 +8,5 @@ import "errors"
 // based and only builds for Linux. The userspace driver is the cross-platform
 // alternative.
 func NewKernel() (Driver, error) {
-	return nil, errors.New("the kernel driver requires Linux (use -driver userspace)")
+	return nil, errors.New("the kernel driver requires Linux (use -driver netstack)")
 }
