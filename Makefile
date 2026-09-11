@@ -1,11 +1,13 @@
 BINARY   := skyfired
+CLIENT   := skyfire-client
 PREFIX   ?= /usr/local
 ETC      ?= /etc/skyfire
 BINROOT  := $(PREFIX)/bin
 EMBDIR   := backend/internal/web/dist
 BINDIR   := backend
+CLIENTDIR := client
 
-.PHONY: all web backend install uninstall run demo test clean
+.PHONY: all web backend client client-windows client-darwin install uninstall run demo test clean
 
 all: web backend
 
@@ -17,6 +19,21 @@ web:
 
 backend:
 	cd $(BINDIR) && go build -trimpath -ldflags "-s -w" -o ../$(BINARY) ./cmd/skyfired
+
+# Desktop client for the current platform (tray on Windows; terminal
+# fallback on Linux / macOS without cgo).
+client:
+	cd $(CLIENTDIR) && go build -trimpath -ldflags "-s -w" -o ../$(CLIENT) .
+
+# Windows client with system tray (pure Go, no cgo needed).
+client-windows:
+	cd $(CLIENTDIR) && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o ../$(CLIENT)-windows-amd64.exe .
+
+# macOS client with system tray. The tray needs cgo (Cocoa), so run this on
+# macOS. `CGO_ENABLED=0 GOOS=darwin go build` also works anywhere and yields
+# the terminal fallback.
+client-darwin:
+	cd $(CLIENTDIR) && GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o ../$(CLIENT)-darwin-arm64 .
 
 install: all
 	install -d $(DESTDIR)$(BINROOT) $(DESTDIR)$(ETC)
@@ -35,8 +52,9 @@ demo: all
 
 test:
 	cd $(BINDIR) && go vet ./... && go test ./...
+	cd $(CLIENTDIR) && go vet ./... && go build ./...
 
 clean:
-	rm -f $(BINARY)
+	rm -f $(BINARY) $(CLIENT) $(CLIENT)-windows-amd64.exe $(CLIENT)-darwin-arm64
 	rm -rf frontend/dist
 	rm -rf $(EMBDIR)

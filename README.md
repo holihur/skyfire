@@ -11,6 +11,7 @@ WireGuard 可视化配置管理工具：一个守护进程管理多个 WireGuard
 
 - 接口与 Peer 的增删改查，自动分配隧道地址
 - 客户端配置下载（.conf 文本）+ 二维码图片
+- 桌面客户端（单文件 + 系统托盘）凭 Peer 令牌一键连接
 - 实时状态：连接状态、最后一次握手、收发流量
 - 单用户密码登录（Session Cookie）+ 可选 Bearer Token
 - 单一可执行文件（Web UI 内嵌）
@@ -35,6 +36,47 @@ sudo SKYFIRE_VERSION=v0.1.0 bash -c "$(curl -fsSL https://raw.githubusercontent.
 - Windows (arm64)：无发布产物（goreleaser 跳过该目标）
 - Windows 服务自启：暂不支持，需手动运行 `skyfired.exe`
 - 从源码构建见下方“开发”（需要 Go ≥ 1.26、Node ≥ 20、pnpm）
+
+## 桌面客户端（一键连接）
+
+单文件客户端 `skyfire-client`：内嵌 `wireguard-go`，系统托盘一键连接/断开，
+凭连接字符串从服务端取配置，无需安装 WireGuard 官方客户端。
+
+- **Windows**：系统托盘（纯 Go，无需 cgo）。发布产物
+  `skyfire-client-windows-amd64.exe`；真实隧道需要 `wintun.dll`（放在 exe 同目录）
+- **macOS**：系统托盘（需 cgo/Cocoa，由 CI 在 macOS 上构建）。发布产物
+  `skyfire-client-darwin-amd64` / `-arm64`；未公证，首次运行需在“系统设置 →
+  隐私与安全性”中放行
+- **Linux**：可编译，但只提供终端模式（实验性，用于本地测试）
+
+### 用法
+
+在 Web UI 的 Peer 详情页「桌面客户端」页签复制连接字符串：
+
+```bash
+# 保存连接字符串并连接（首次运行弹框 / 终端提示输入）
+skyfire-client -connect 'https://vpn.example.com:51821/api/p/<token>/wg.conf'
+
+# 仅拉取并校验配置，不改动系统
+skyfire-client -dry-run
+
+# 无托盘环境用终端模式；也可用本地 .conf 而不从服务端拉取
+skyfire-client -cli -conf ./peer.conf
+```
+
+托盘菜单：连接/断开、设置连接字符串、退出；图标颜色表示状态（绿=已连接）。
+连接字符串也可只保存不用：不带 `-connect` 启动后由托盘菜单设置。
+
+### 权限与路由说明
+
+- 全隧道（`AllowedIPs` 含 `0.0.0.0/0`）会安装默认路由：Linux 用 wg-quick 风格
+  策略路由（fwmark + 独立路由表 `51821`，避免与 wg-quick 的 `51820` 冲突）；
+  Windows/macOS 用两条 `/1` 路由。
+- Windows 真实隧道首次需管理员权限（创建 Wintun 网卡）；macOS 无公证会被
+  Gatekeeper 拦截。
+- 已知限制：endpoint 例外尚未实现（见 issue #14 风险），全隧道下
+  Windows/macOS 可能出现 endpoint 流量误入隧道；MVP 建议先用分隧道
+  （Peer 的 `clientRoutes` 只填内网网段）验证。
 
 ## 手动运行
 
@@ -64,6 +106,9 @@ sudo ./skyfired -config /etc/skyfire/config.json -addr :51821
 # 后端
 cd backend && go test ./... && go vet ./...
 
+# 桌面客户端
+cd client && go vet ./... && go build ./...
+
 # 前端（热更新开发）
 cd frontend && pnpm install && pnpm dev
 ```
@@ -80,6 +125,8 @@ Session Cookie。主要端点：
 - `GET /api/interfaces/{name}/config` — 服务端 wg-quick 配置
 - `POST /api/interfaces/{name}/peers` — 添加 Peer
 - `GET /api/interfaces/{name}/peers/{key}/config[.png]` — 客户端配置 / QR 码
+- `GET /api/p/{token}/wg.conf` — 凭 Peer 令牌获取客户端配置（免登录，仅此 Peer）
+- `GET /api/p/{token}/wg.png` — 同上，二维码图片
 
 ## 许可证
 

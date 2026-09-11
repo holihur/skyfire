@@ -1,14 +1,18 @@
+version: 2
+
 project_name: skyfire
 
 before:
   hooks:
     - bash -c "cd backend && go mod tidy"
+    - bash -c "cd client && go mod tidy"
     - bash -c "cd frontend && pnpm install --frozen-lockfile && pnpm build"
     - mkdir -p backend/internal/web/dist
     - cp -r frontend/dist/index.html frontend/dist/assets backend/internal/web/dist/
 
 builds:
-  - dir: backend
+  - id: skyfired
+    dir: backend
     main: ./cmd/skyfired
     binary: skyfired
     env:
@@ -28,15 +32,39 @@ builds:
       - goos: windows
         goarch: arm64
 
+  # Desktop client. Windows is built here (pure Go, tray included). macOS
+  # needs cgo (systray/Cocoa) and is built on a macOS runner by the release
+  # workflow, then attached to the same release.
+  - id: skyfire-client
+    dir: client
+    main: .
+    binary: skyfire-client
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+    goos:
+      - windows
+    goarch:
+      - amd64
+
 archives:
-  - format: binary
-    name_template: '{{ if eq .Os "windows" }}{{ .Binary }}-{{ .Os }}-{{ .Arch }}.exe{{ else }}{{ .Binary }}-{{ .Os }}-{{ .Arch }}{{ end }}'
+  - id: skyfired
+    ids: [skyfired]
+    formats: [binary]
+    name_template: "skyfired-{{ .Os }}-{{ .Arch }}"
+  - id: skyfire-client
+    ids: [skyfire-client]
+    formats: [binary]
+    name_template: "skyfire-client-{{ .Os }}-{{ .Arch }}"
 
 checksum:
   name_template: "checksums.txt"
 
 snapshot:
-  name_template: "{{ .Tag }}-next"
+  version_template: "{{ .Tag }}-next"
 
 changelog:
   sort: asc

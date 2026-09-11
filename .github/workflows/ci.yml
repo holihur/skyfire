@@ -48,6 +48,28 @@ jobs:
       - name: Build
         run: pnpm build
 
+  client:
+    name: Client (vet + cross-compile)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: client/go.mod
+          cache-dependency-path: client/go.sum
+      - name: Vet
+        run: go vet ./...
+      - name: Cross-compile (windows tray, others CLI fallback)
+        run: |
+          for target in "windows/amd64" "darwin/amd64" "darwin/arm64" "linux/amd64"; do
+            os="${target%/*}"; arch="${target#*/}"
+            echo "building $os/$arch"
+            CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -o /tmp/skyfire-client-ok .
+          done
+
   windows:
     name: Windows binary (cross-compile + wine smoke)
     runs-on: ubuntu-latest
@@ -105,3 +127,32 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # The macOS tray needs cgo (systray/Cocoa), so the darwin client is built on
+  # a macOS runner and attached to the goreleaser release afterwards.
+  release-client-darwin:
+    name: Release client (macOS tray)
+    runs-on: macos-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: client/go.mod
+          cache-dependency-path: client/go.sum
+      - name: Build darwin client (cgo tray)
+        working-directory: client
+        run: |
+          for arch in amd64 arm64; do
+            CGO_ENABLED=1 GOOS=darwin GOARCH=$arch go build -trimpath \
+              -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" \
+              -o "/tmp/skyfire-client-darwin-$arch" .
+          done
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${GITHUB_REF_NAME}" \
+            /tmp/skyfire-client-darwin-amd64 \
+            /tmp/skyfire-client-darwin-arm64 --clobber
