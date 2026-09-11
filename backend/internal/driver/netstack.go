@@ -7,6 +7,8 @@ import (
 	"net/netip"
 	"os"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
@@ -85,10 +87,24 @@ func (n *Netstack) get(name string) *nsDevice {
 	return n.devs[name]
 }
 
+func (n *Netstack) set(name string, d *nsDevice) {
+	n.Lock()
+	defer n.Unlock()
+	n.devs[name] = d
+}
+
+func (n *Netstack) drop(name string) {
+	n.Lock()
+	defer n.Unlock()
+	delete(n.devs, name)
+}
+
 // Create only registers the interface (name + mtu). The live device is built
 // lazily at Up() once addresses are known to netstack.
 func (n *Netstack) Create(name string, mtu int) error {
-	if d := n.get(name); d != nil {
+	n.Lock()
+	defer n.Unlock()
+	if d, ok := n.devs[name]; ok {
 		if mtu > 0 {
 			d.mtu = mtu
 		}
@@ -97,8 +113,7 @@ func (n *Netstack) Create(name string, mtu int) error {
 	if mtu == 0 {
 		mtu = 1420
 	}
-	d := &nsDevice{mtu: mtu}
-	n.devs[name] = d
+	n.devs[name] = &nsDevice{mtu: mtu}
 	return nil
 }
 
@@ -212,7 +227,7 @@ func (n *Netstack) Remove(name string) error {
 		_ = d.tun.Close()
 		d.tun = nil
 	}
-	delete(n.devs, name)
+	n.drop(name)
 	return nil
 }
 
@@ -252,6 +267,7 @@ type nsTun struct {
 	incomingPacket chan *buffer.View
 	localAddrs     []netip.Addr
 	closeOnce      sync.Once
+	closed         atomic.Bool
 }
 
 func openNSStack(prefixes []string, mtu int) (*nsTun, error) {
@@ -328,6 +344,13 @@ func openNSStack(prefixes []string, mtu int) (*nsTun, error) {
 }
 
 func (t *nsTun) sendEvent(e tun.Event) {
+	// Sending on a closed channel panics (select/default does not save
+	// us), so guard with the closed flag plus a recover for the residual
+	// Up()-vs-Close() race window.
+	defer func() { _ = recover() }()
+	if t.closed.Load() {
+		return
+	}
 	select {
 	case t.events <- e:
 	default:
@@ -373,21 +396,26 @@ func (t *nsTun) Write(bufs [][]byte, offset int) (int, error) {
 }
 
 func (t *nsTun) WriteNotify() {
-	pkt := t.ep.Read()
-	if pkt == nil {
-		return
-	}
-	view := pkt.ToView()
-	pkt.DecRef()
-	select {
-	case t.incomingPacket <- view:
-	default:
-		view.Release()
+	// Drain all queued packets: channel.Endpoint may batch several
+	// packets behind a single notification.
+	for {
+		pkt := t.ep.Read()
+		if pkt == nil {
+			return
+		}
+		view := pkt.ToView()
+		pkt.DecRef()
+		select {
+		case t.incomingPacket <- view:
+		default:
+			view.Release()
+		}
 	}
 }
 
 func (t *nsTun) Close() error {
 	t.closeOnce.Do(func() {
+		t.closed.Store(true)
 		t.stack.RemoveNIC(1)
 		t.stack.Close()
 		t.ep.RemoveNotify(t.notifyHandle)
@@ -501,23 +529,44 @@ func (t *nsTun) handleUDP(r *udp.ForwarderRequest) {
 	}()
 }
 
-func relayConns(client net.Conn, remote net.Conn) {
-	go func() {
-		_, _ = io.Copy(remote, client)
-		_ = client.Close()
-		_ = remote.Close()
-	}()
-	go func() {
-		_, _ = io.Copy(client, remote)
-		_ = client.Close()
-		_ = remote.Close()
-	}()
+// closeWrite half-closes the write side where supported so the peer can
+// still deliver in-flight data after we stop sending.
+func closeWrite(c net.Conn) {
+	if tc, ok := c.(*net.TCPConn); ok {
+		_ = tc.CloseWrite()
+	}
 }
+
+func relayConns(client net.Conn, remote net.Conn) {
+	// Wait for both directions before closing: closing either conn early
+	// would truncate the opposite direction and break TCP half-close
+	// (e.g. HTTP request + FIN followed by the response).
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		_, _ = io.Copy(remote, client)
+		closeWrite(remote)
+	}()
+	go func() {
+		defer wg.Done()
+		_, _ = io.Copy(client, remote)
+		closeWrite(client)
+	}()
+	wg.Wait()
+	_ = client.Close()
+	_ = remote.Close()
+}
+
+// udpIdleTimeout bounds relay goroutine lifetime for connectionless UDP
+// flows whose peer never answers.
+const udpIdleTimeout = 2 * time.Minute
 
 func relayUDP(client *gonet.UDPConn, remote *net.UDPConn) {
 	go func() {
 		buf := make([]byte, 65535)
 		for {
+			_ = client.SetReadDeadline(time.Now().Add(udpIdleTimeout))
 			n, err := client.Read(buf)
 			if err != nil {
 				break
@@ -532,6 +581,7 @@ func relayUDP(client *gonet.UDPConn, remote *net.UDPConn) {
 	go func() {
 		buf := make([]byte, 65535)
 		for {
+			_ = remote.SetReadDeadline(time.Now().Add(udpIdleTimeout))
 			n, err := remote.Read(buf)
 			if err != nil {
 				break

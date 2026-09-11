@@ -1,8 +1,13 @@
 package driver
 
 import (
+	"fmt"
+	"io"
+	"net"
 	"net/netip"
+	"sync"
 	"testing"
+	"time"
 
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
@@ -73,5 +78,52 @@ func TestNetstackAddressClassification(t *testing.T) {
 	}
 	if tun.isLocal(mustAddr(t, "10.42.0.9/32")) {
 		t.Fatal("foreign address flagged local")
+	}
+}
+
+func TestNetstackConcurrentCreateRemove(t *testing.T) {
+	d := NewNetstack()
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			name := fmt.Sprintf("ns%d", i)
+			_ = d.Create(name, 1420)
+			_ = d.Remove(name)
+		}(i)
+	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_ = d.Close()
+	}()
+	wg.Wait()
+}
+
+func TestRelayConnsFullDuplex(t *testing.T) {
+	c1, c2 := net.Pipe()
+	r1, r2 := net.Pipe()
+	done := make(chan struct{})
+	go func() { relayConns(c1, r1); close(done) }()
+	if _, err := c2.Write([]byte("ping")); err != nil {
+		t.Fatal(err)
+	}
+	got := make([]byte, 4)
+	if _, err := io.ReadFull(r2, got); err != nil {
+		t.Fatalf("client->remote: %v", err)
+	}
+	if _, err := r2.Write([]byte("pong")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := io.ReadFull(c2, got); err != nil {
+		t.Fatalf("remote->client: %v", err)
+	}
+	_ = c2.Close()
+	_ = r2.Close()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("relayConns did not return after both sides closed")
 	}
 }
