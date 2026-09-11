@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -36,7 +37,7 @@ var version = "dev"
 
 func main() {
 	var (
-		configPath = flag.String("config", "/etc/skyfire/config.json", "path to the persisted configuration file")
+		configPath = flag.String("config", "", "path to the persisted configuration file (auto-resolved when empty)")
 		addr       = flag.String("addr", ":51821", "listen address for the web server")
 		driverName = flag.String("driver", "userspace", "wireguard backend: userspace | kernel | mock")
 		dryRun     = flag.Bool("dry-run", false, "log every live operation without applying it (safe preview)")
@@ -58,9 +59,7 @@ func main() {
 	if *demo {
 		*dryRun = true
 		*driverName = "mock"
-		if *configPath == "/etc/skyfire/config.json" {
-			*configPath = "/tmp/skyfire-demo.json"
-		}
+		*configPath = "/tmp/skyfire-demo.json"
 		if *token == "" {
 			*token = "demo"
 		}
@@ -68,6 +67,10 @@ func main() {
 			*username = "admin"
 			*password = "demo"
 		}
+	}
+
+	if *configPath == "" {
+		*configPath = resolveConfigPath()
 	}
 
 	if *password == "" {
@@ -220,4 +223,36 @@ func randomPassword() (string, error) {
 		buf[i] = charset[n.Int64()]
 	}
 	return string(buf), nil
+}
+
+// resolveConfigPath picks a writable location for the persisted state so the
+// daemon can run with no arguments (as root it keeps the system path).
+func resolveConfigPath() string {
+	candidates := []string{
+		"/etc/skyfire/config.json",
+		"",
+	}
+	for _, c := range candidates {
+		if c != "" && canWriteDir(filepath.Dir(c)) {
+			return c
+		}
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+			return filepath.Join(xdg, "skyfire", "config.json")
+		}
+		return filepath.Join(home, ".config", "skyfire", "config.json")
+	}
+	return "skyfire.json"
+}
+
+func canWriteDir(dir string) bool {
+	f, err := os.CreateTemp(dir, ".skyfire-write-test-*")
+	if err != nil {
+		return false
+	}
+	name := f.Name()
+	_ = f.Close()
+	_ = os.Remove(name)
+	return true
 }

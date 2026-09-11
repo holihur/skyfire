@@ -48,6 +48,36 @@ jobs:
       - name: Build
         run: pnpm build
 
+  windows:
+    name: Windows binary (cross-compile + wine smoke)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Cross-compile (compile check for every GOOS/GOARCH)
+        run: |
+          cd backend
+          for target in "windows/amd64" "windows/arm64" "darwin/amd64" "darwin/arm64" "linux/amd64" "linux/arm64"; do
+            os="${target%/*}"; arch="${target#*/}"
+            echo "building $os/$arch"
+            GOOS=$os GOARCH=$arch CGO_ENABLED=0 go build -o /tmp/build-ok ./cmd/skyfired
+          done
+      - name: Build Windows amd64 binary
+        run: |
+          cd backend
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o /tmp/skyfired.exe ./cmd/skyfired
+      - name: Install Wine
+        run: |
+          sudo dpkg --add-architecture i386 || true
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq wine64 >/dev/null 2>&1 || true
+          wine --version 2>/dev/null || which wine || echo "wine unavailable"
+      - name: Smoke test under Wine
+        run: bash deploy/test-windows.sh /tmp/skyfired.exe
+
   release:
     name: Release (goreleaser)
     runs-on: ubuntu-latest

@@ -15,15 +15,24 @@ WireGuard 可视化配置管理工具：一个守护进程管理多个 WireGuard
 - 单用户密码登录（Session Cookie）+ 可选 Bearer Token
 - 单一可执行文件（Web UI 内嵌）
 
-## 快速安装
+## 快速安装（纯二进制，无需 Go/Node 工具链）
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/holihur/skyfire/main/deploy/install.sh | sudo bash
 ```
 
-脚本会优先下载最新 release 二进制，否则从源码构建（需要 Go ≥ 1.26、Node ≥ 20、pnpm）。
-安装后打开 `http://<host>:51821`，用用户名 `admin` 和密码登录——密码在
-`journalctl -u skyfire -n 40` 或安装输出中打印。用 `-password` 参数固定密码。
+脚本从 GitHub Release 下载对应平台的预编译二进制（Linux 下同时可选装 systemd
+服务）。固定版本：
+
+```bash
+sudo SKYFIRE_VERSION=v0.1.0 bash -c "$(curl -fsSL https://raw.githubusercontent.com/holihur/skyfire/main/deploy/install.sh)"
+# Windows (git-bash):  可选安装后运行 skyfired.exe -demo / skyfired.exe
+```
+
+- Linux：`/usr/local/bin/skyfired`，自动生成 systemd 服务（监听 `:51821`），
+  登录密码打印在 `journalctl -u skyfire -n 40`，可用 `-password` 固定
+- Windows：`skyfired.exe`；真实隧道需要 Wintun 驱动，`-demo` 模式无需任何特权
+- 从源码构建见下方“开发”（需要 Go ≥ 1.26、Node ≥ 20、pnpm）
 
 ## 手动运行
 

@@ -20,7 +20,7 @@ type Kernel struct {
 }
 
 // NewKernel opens the netlink control client.
-func NewKernel() (*Kernel, error) {
+func NewKernel() (Driver, error) {
 	c, err := wgctrl.New()
 	if err != nil {
 		return nil, fmt.Errorf("open wgctrl: %w", err)
