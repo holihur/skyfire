@@ -36,7 +36,8 @@ import (
 // through regular OS sockets, which yields NAT-like source rewriting across
 // platforms (Linux, Windows, macOS) from a single code path.
 //
-// Limitations: ICMP and raw IP protocols are not relayed through the tunnel;
+// Limitations: ICMP and raw IP protocols are not relayed to transit
+// destinations (ICMP to the interface's own address is still answered);
 // transit traffic follows the daemon's own OS default route.
 type Netstack struct {
 	sync.Mutex
@@ -266,8 +267,42 @@ type nsTun struct {
 	notifyHandle   *channel.NotificationHandle
 	incomingPacket chan *buffer.View
 	localAddrs     []netip.Addr
+	peerNets       []netip.Prefix
 	closeOnce      sync.Once
 	closed         atomic.Bool
+}
+
+func toFullAddr(ap netip.AddrPort) (tcpip.FullAddress, tcpip.NetworkProtocolNumber) {
+	pn := ipv6.ProtocolNumber
+	if ap.Addr().Is4() {
+		pn = ipv4.ProtocolNumber
+	}
+	fa := tcpip.FullAddress{
+		NIC:  1,
+		Addr: tcpip.AddrFromSlice(ap.Addr().AsSlice()),
+		Port: ap.Port(),
+	}
+	return fa, pn
+}
+
+// peerNetsOf turns a peer config into the cryptokey-routing prefixes this
+// interface forwards back into the tunnel (peer-to-peer transit), as-is
+// including default routes, mirroring kernel WireGuard semantics.
+func peerNetsOf(peers []PeerSpec) []netip.Prefix {
+	var out []netip.Prefix
+	for _, p := range peers {
+		for _, a := range p.AllowedIPs {
+			pre, err := netip.ParsePrefix(a)
+			if err != nil {
+				continue
+			}
+			if !pre.IsValid() {
+				continue
+			}
+			out = append(out, pre)
+		}
+	}
+	return out
 }
 
 func openNSStack(prefixes []string, mtu int) (*nsTun, error) {
@@ -296,7 +331,11 @@ func openNSStack(prefixes []string, mtu int) (*nsTun, error) {
 	st := stack.New(stack.Options{
 		NetworkProtocols:   []stack.NetworkProtocolFactory{ipv4.NewProtocol, ipv6.NewProtocol},
 		TransportProtocols: []stack.TransportProtocolFactory{tcp.NewProtocol, udp.NewProtocol},
-		HandleLocal:        true,
+		// HandleLocal must be off: combined with promiscuous mode (needed so
+		// transit packets addressed to arbitrary destinations are accepted)
+		// the loopback shortcut otherwise stops answering the interface's
+		// own address.
+		HandleLocal: false,
 	})
 	sackEnabled := tcpip.TCPSACKEnabled(true)
 	if err := st.SetTransportProtocolOption(tcp.ProtocolNumber, &sackEnabled); err != nil {
@@ -338,8 +377,24 @@ func openNSStack(prefixes []string, mtu int) (*nsTun, error) {
 		st.AddRoute(tcpip.Route{Destination: header.IPv6EmptySubnet, NIC: 1})
 	}
 
-	tcp.NewForwarder(st, 65535, 65535, t.handleTCP)
-	_ = udp.NewForwarder(st, t.handleUDP)
+	// Forwarders only run when registered as the transport protocol handler;
+	// creating them without registering silently drops TCP/UDP and resets
+	// connections destined to the interface address.
+	tcpFwd := tcp.NewForwarder(st, 65535, 65535, t.handleTCP)
+	st.SetTransportProtocolHandler(tcp.ProtocolNumber, tcpFwd.HandlePacket)
+	udpFwd := udp.NewForwarder(st, t.handleUDP)
+	st.SetTransportProtocolHandler(udp.ProtocolNumber, udpFwd.HandlePacket)
+
+	// Accept and relay packets addressed to arbitrary destinations (internet
+	// transit through the tunnel), not only the interface's own addresses.
+	if err := st.SetPromiscuousMode(1, true); err != nil {
+		st.Close()
+		return nil, fmt.Errorf("enable promiscuous mode: %s", err)
+	}
+	if err := st.SetSpoofing(1, true); err != nil {
+		st.Close()
+		return nil, fmt.Errorf("enable spoofing: %s", err)
+	}
 	return t, nil
 }
 
