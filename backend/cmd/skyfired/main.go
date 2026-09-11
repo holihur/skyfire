@@ -31,6 +31,9 @@ import (
 	"skyfire/internal/web"
 )
 
+// Version is injected at release time via -ldflags -X main.version=<ver>.
+var version = "dev"
+
 func main() {
 	var (
 		configPath = flag.String("config", "/etc/skyfire/config.json", "path to the persisted configuration file")
@@ -104,6 +107,7 @@ func main() {
 		log.Info("auth enabled (use 'Authorization: Bearer <token>' header)")
 	}
 	log.Info("skyfired starting",
+		"version", version,
 		"driver", drv.Name(),
 		"dryRun", *dryRun,
 		"addr", *addr,

@@ -1,0 +1,41 @@
+project_name: skyfire
+
+before:
+  hooks:
+    - go mod tidy
+    - cd frontend && pnpm install --frozen-lockfile && pnpm build
+    - mkdir -p backend/internal/web/dist
+    - cp -r frontend/dist/index.html frontend/dist/assets backend/internal/web/dist/
+
+builds:
+  - main: ./backend/cmd/skyfired
+    binary: skyfired
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - format: binary
+    name_template: "skyfired-{{ .Os }}-{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  name_template: "{{ .Tag }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
