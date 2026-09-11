@@ -257,8 +257,9 @@ sudo skyfired update -restart=false
 5. **导出配置**：Peer 详情弹窗有四个页签：
    - **QR**：配置二维码（手机/平板扫码导入）
    - **Conf**：客户端 `.conf` 文本，可复制/下载
-   - **Desktop client**：**连接字符串**（`{origin}/api/p/{token}/wg.conf`），
-     复制给 Skyfire 桌面客户端一键连接
+   - **Desktop client**：**连接字符串**（`{origin}/api/p/{token}/wg.conf`）与
+     **一键连接命令**（`skyfire-client -connect '<URL>'`，可选 Linux/macOS 或
+     Windows），复制给终端用户即可直接执行连接
    - **Info**：地址、公钥、握手时间、收发流量
 6. **导出服务端配置**：接口详情可下载服务端 wg-quick 配置、查看/复制私钥。
 

@@ -74,10 +74,11 @@ sudo skyfire update -version v0.6.0
 
 ### 用法
 
-在 Web UI 的 Peer 详情页「桌面客户端」页签复制连接字符串：
+在 Web UI 的 Peer 详情页「桌面客户端」页签复制**连接字符串**，或直接复制
+**一键连接命令**发给终端用户。
 
 ```bash
-# 保存连接字符串并连接（首次运行弹框 / 终端提示输入）
+# 保存连接字符串并立即连接（托盘启动即已连接；首次运行弹框输入）
 skyfire-client -connect 'https://vpn.example.com:51821/api/p/<token>/wg.conf'
 
 # 仅拉取并校验配置，不改动系统

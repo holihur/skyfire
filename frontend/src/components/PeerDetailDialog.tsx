@@ -22,6 +22,7 @@ export default function PeerDetailDialog({ open, onOpenChange, ifaceName, peer, 
   const { toast } = useToast()
   const { t, lang } = useI18n()
   const [tab, setTab] = useState('qr')
+  const [cmdOS, setCmdOS] = useState<'unix' | 'windows'>('unix')
   const [config, setConfig] = useState('')
   const [configError, setConfigError] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -52,10 +53,27 @@ export default function PeerDetailDialog({ open, onOpenChange, ifaceName, peer, 
 
   const connectString = `${window.location.origin}${api.tokenConfigUrl(peer.clientToken)}`
 
+  // One-click connect command an admin can copy and hand to an end user. The
+  // client is launched with -connect, which now brings the tunnel up
+  // immediately (tray starts connected).
+  const connectCommand =
+    cmdOS === 'windows'
+      ? `skyfire-client.exe -connect "${connectString}"`
+      : `skyfire-client -connect '${connectString}'`
+
   const copyConnectString = async () => {
     try {
       await navigator.clipboard.writeText(connectString)
       toast({ description: t('peerDetail.connectCopied'), variant: 'success' })
+    } catch {
+      toast({ description: t('common.clipboardUnavailable'), variant: 'destructive' })
+    }
+  }
+
+  const copyCommand = async () => {
+    try {
+      await navigator.clipboard.writeText(connectCommand)
+      toast({ description: t('peerDetail.commandCopied'), variant: 'success' })
     } catch {
       toast({ description: t('common.clipboardUnavailable'), variant: 'destructive' })
     }
@@ -150,15 +168,54 @@ export default function PeerDetailDialog({ open, onOpenChange, ifaceName, peer, 
         </TabsContent>
 
         <TabsContent value="client">
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-5">
             <p className="text-sm text-muted-foreground">{t('peerDetail.clientHint')}</p>
-            <div className="flex items-center gap-2">
-              <code className="mono flex-1 break-all rounded-xl border bg-secondary px-3 py-2 text-xs">
-                {connectString}
-              </code>
-              <Button variant="outline" size="icon" onClick={copyConnectString} title={t('common.copy')}>
-                <Copy />
-              </Button>
+
+            <div>
+              <div className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">
+                {t('peerDetail.connectString')}
+              </div>
+              <div className="flex items-center gap-2">
+                <code className="mono flex-1 break-all rounded-xl border bg-secondary px-3 py-2 text-xs">
+                  {connectString}
+                </code>
+                <Button variant="outline" size="icon" onClick={copyConnectString} title={t('common.copy')}>
+                  <Copy />
+                </Button>
+              </div>
+            </div>
+
+            <div>
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                  {t('peerDetail.command')}
+                </span>
+                <div className="flex gap-1">
+                  <Button
+                    size="sm"
+                    variant={cmdOS === 'unix' ? 'secondary' : 'ghost'}
+                    onClick={() => setCmdOS('unix')}
+                  >
+                    {t('peerDetail.commandUnix')}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={cmdOS === 'windows' ? 'secondary' : 'ghost'}
+                    onClick={() => setCmdOS('windows')}
+                  >
+                    {t('peerDetail.commandWindows')}
+                  </Button>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <code className="mono flex-1 break-all rounded-xl border bg-secondary px-3 py-2 text-xs">
+                  {connectCommand}
+                </code>
+                <Button variant="outline" size="icon" onClick={copyCommand} title={t('common.copy')}>
+                  <Copy />
+                </Button>
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">{t('peerDetail.commandHint')}</p>
             </div>
           </div>
         </TabsContent>
