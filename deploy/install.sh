@@ -44,13 +44,39 @@ main() {
   info "installing skyfired $VERSION ($os/$arch) into $PREFIX"
 
   command -v curl >/dev/null 2>&1 || die "curl is required"
-  install -d "$PREFIX/bin" "$ETC"
+  if [[ "$VERSION" == "latest" ]]; then
+    ASSET_BASE="https://github.com/$REPO/releases/latest/download"
+  else
+    ASSET_BASE="https://github.com/$REPO/releases/download/$VERSION"
+  fi
+  install -d "$PREFIX/bin"
 
-  URL="https://github.com/$REPO/releases/download/$VERSION/skyfired-$os-$arch$BIN_EXT"
+  URL="$ASSET_BASE/skyfired-$os-$arch$BIN_EXT"
   info "downloading $URL"
-  curl -fSL --retry 3 -o "$DEST.tmp" "$URL" \
-    || die "download failed for $VERSION ($os/$arch): run 'curl -fsSL https://raw.githubusercontent.com/$REPO/main/deploy/install.sh | sudo sudo SKYFIRE_VERSION=vX.Y.Z bash' to pick a different version"
+  curl -fSL --retry 3 --connect-timeout 15 -o "$DEST.tmp" "$URL" \
+    || die "download failed for $VERSION ($os-$arch): rerun with SKYFIRE_VERSION=vX.Y.Z to pick a specific version"
   chmod +x "$DEST.tmp"
+
+  if command -v sha256sum >/dev/null 2>&1; then
+    SUM="sha256sum"
+  elif command -v shasum >/dev/null 2>&1; then
+    SUM="shasum -a 256"
+  fi
+  if [[ -n "${SUM:-}" ]]; then
+    info "verifying checksum"
+    SUMS_URL="$ASSET_BASE/checksums.txt"
+    curl -fsSL --retry 3 --connect-timeout 15 -o "$DEST.tmp.checksums" "$SUMS_URL" \
+      || die "checksum file download failed: $SUMS_URL"
+    want="$(grep "skyfired-$os-$arch$BIN_EXT\$" "$DEST.tmp.checksums" | awk '{print $1}')"
+    got="$($SUM "$DEST.tmp" | awk '{print $1}')"
+    rm -f "$DEST.tmp.checksums"
+    if [[ -z "$want" || "$want" != "$got" ]]; then
+      rm -f "$DEST.tmp"
+      die "checksum mismatch: expected ${want:-<missing>}, got $got"
+    fi
+  else
+    info "WARNING: sha256 tool not found, skipping checksum verification"
+  fi
   mv -f "$DEST.tmp" "$DEST"
   info "binary installed at $DEST"
 
@@ -61,10 +87,11 @@ main() {
   fi
 
   if [[ "$(id -u)" -ne 0 ]]; then
-    info "non-root: binary installed; systemd unit skipped (run: sudo bash $0)"
+    info "non-root: binary installed; systemd unit skipped (rerun with sudo for the service)"
     return 0
   fi
 
+  install -d "$ETC"
   cat > /etc/systemd/system/skyfire.service <<EOF
 [Unit]
 Description=Skyfire WireGuard management daemon
