@@ -27,6 +27,8 @@ curl -fsSL https://raw.githubusercontent.com/holihur/skyfire/main/deploy/install
 
 ```bash
 sudo SKYFIRE_VERSION=v0.1.0 bash -c "$(curl -fsSL https://raw.githubusercontent.com/holihur/skyfire/main/deploy/install.sh)"
+# 固定登录密码（写入 /etc/skyfire/skyfire.env，不落进 unit 文件）：
+sudo SKYFIRE_PASSWORD='your-password' bash -c "$(curl -fsSL https://raw.githubusercontent.com/holihur/skyfire/main/deploy/install.sh)"
 # Windows (git-bash):  可选安装后运行 skyfired.exe -demo / skyfired.exe
 ```
 

@@ -9,6 +9,7 @@
 #
 # Env:
 #   SKYFIRE_VERSION=vX.Y.Z   pin a release tag (default: latest)
+#   SKYFIRE_PASSWORD=...      fixed web login password (default: random per start)
 #   PREFIX=/usr/local         install prefix
 #   ETC=/etc/skyfire          config directory (Linux)
 #
@@ -92,6 +93,13 @@ main() {
   fi
 
   install -d "$ETC"
+  # Optional fixed password: keep it out of the unit file itself.
+  unit_password=""
+  if [[ -n "${SKYFIRE_PASSWORD:-}" ]]; then
+    printf 'SKYFIRE_PASSWORD=%s\n' "$SKYFIRE_PASSWORD" > "$ETC/skyfire.env"
+    chmod 600 "$ETC/skyfire.env"
+    unit_password=' -password ${SKYFIRE_PASSWORD}'
+  fi
   cat > /etc/systemd/system/skyfire.service <<EOF
 [Unit]
 Description=Skyfire WireGuard management daemon
@@ -101,7 +109,8 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=$DEST -config $ETC/config.json -addr :51821
+EnvironmentFile=-$ETC/skyfire.env
+ExecStart=$DEST -config $ETC/config.json -addr :51821$unit_password
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true
@@ -118,8 +127,12 @@ EOF
   systemctl daemon-reload
   systemctl enable --now skyfire
   info "service skyfire started on :51821"
-  info "web login: http://<host>:51821  (username 'admin', password printed at first start in:)"
-  journalctl -u skyfire --no-pager -n 60 2>/dev/null | grep -oE 'password=[A-Za-z0-9]+' | tail -1 || true
+  if [[ -n "${SKYFIRE_PASSWORD:-}" ]]; then
+    info "web login: http://<host>:51821  (username 'admin', password from SKYFIRE_PASSWORD)"
+  else
+    info "web login: http://<host>:51821  (username 'admin', password printed at first start in:)"
+    journalctl -u skyfire --no-pager -n 60 2>/dev/null | grep -oE 'password=[A-Za-z0-9]+' | tail -1 || true
+  fi
 }
 
 main "$@"
