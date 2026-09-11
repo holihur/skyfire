@@ -2,13 +2,14 @@ project_name: skyfire
 
 before:
   hooks:
-    - go mod tidy
-    - cd frontend && pnpm install --frozen-lockfile && pnpm build
+    - bash -c "cd backend && go mod tidy"
+    - bash -c "cd frontend && pnpm install --frozen-lockfile && pnpm build"
     - mkdir -p backend/internal/web/dist
     - cp -r frontend/dist/index.html frontend/dist/assets backend/internal/web/dist/
 
 builds:
-  - main: ./backend/cmd/skyfired
+  - dir: backend
+    main: ./cmd/skyfired
     binary: skyfired
     env:
       - CGO_ENABLED=0

@@ -16,3 +16,4 @@ backend/internal/web/dist/assets/
 # Misc
 *.log
 .DS_Store
+dist/
