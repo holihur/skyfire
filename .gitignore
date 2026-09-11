@@ -1,0 +1,17 @@
+# Go
+backend/skyfired
+backend/skyfired.exe
+backend/*.test
+*.prof
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
+
+# Embedded frontend build output (placeholder index.html is committed)
+backend/internal/web/dist/assets/
+
+# Misc
+*.log
+.DS_Store
