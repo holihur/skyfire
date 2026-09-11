@@ -1,22 +1,29 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { LogOut, Moon, Rocket, Settings, Sun, Zap } from 'lucide-react'
+import { LogOut, Rocket, Settings, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '../auth/AuthContext'
 import { useI18n } from '../i18n'
-import { useTheme } from '../theme'
-import SettingsDialog from './SettingsDialog'
-import QuickConnectDialog from './QuickConnectDialog'
+import PageFallback from './PageFallback'
+
+// Dialogs are only needed once the user opens them, so they are code-split and
+// mounted on first use (kept mounted afterwards to preserve close animations).
+const SettingsDialog = lazy(() => import('./SettingsDialog'))
+const QuickConnectDialog = lazy(() => import('./QuickConnectDialog'))
 
 export default function Layout() {
   const { logout } = useAuth()
-  const { t, lang, setLang } = useI18n()
-  const { theme, toggle } = useTheme()
+  const { t } = useI18n()
   const navigate = useNavigate()
   const location = useLocation()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [quickOpen, setQuickOpen] = useState(false)
+  const [dialogsMounted, setDialogsMounted] = useState(false)
   const [health, setHealth] = useState<{ driver: string; dryRun: boolean; version: string } | null>(null)
+
+  useEffect(() => {
+    if (settingsOpen || quickOpen) setDialogsMounted(true)
+  }, [settingsOpen, quickOpen])
 
   useEffect(() => {
     const load = () =>
@@ -95,24 +102,6 @@ export default function Layout() {
 
             <div className="mx-0.5 hidden h-5 w-px bg-border sm:block" />
 
-            <select
-              className="cursor-pointer rounded-lg border bg-popover px-2 py-1.5 text-xs font-medium text-secondary-foreground outline-none transition hover:text-foreground"
-              value={lang}
-              onChange={(e) => setLang(e.target.value as 'en' | 'zh')}
-              title={t('lang.' + lang)}
-              aria-label="Language"
-            >
-              <option value="en">{t('lang.en')}</option>
-              <option value="zh">{t('lang.zh')}</option>
-            </select>
-            <Button
-              variant="ghost"
-              size="icon"
-              title={theme === 'dark' ? t('theme.light') : t('theme.dark')}
-              onClick={toggle}
-            >
-              {theme === 'dark' ? <Sun /> : <Moon />}
-            </Button>
             <Button variant="ghost" size="icon" title={t('header.settings')} onClick={() => setSettingsOpen(true)}>
               <Settings />
             </Button>
@@ -124,11 +113,17 @@ export default function Layout() {
       </header>
 
       <main className="flex-1 overflow-y-auto px-5 py-6">
-        <Outlet />
+        <Suspense fallback={<PageFallback />}>
+          <Outlet />
+        </Suspense>
       </main>
 
-      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
-      <QuickConnectDialog open={quickOpen} onOpenChange={setQuickOpen} />
+      {dialogsMounted && (
+        <Suspense fallback={null}>
+          <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+          <QuickConnectDialog open={quickOpen} onOpenChange={setQuickOpen} />
+        </Suspense>
+      )}
     </div>
   )
 }
