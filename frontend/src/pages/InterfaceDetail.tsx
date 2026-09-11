@@ -61,11 +61,11 @@ export default function InterfaceDetail() {
   }, [name])
 
   const totalRx = useMemo(
-    () => (iface ? iface.peers.reduce((a, p) => a + p.transferRx, 0) : 0),
+    () => (iface ? (iface.peers ?? []).reduce((a, p) => a + p.transferRx, 0) : 0),
     [iface],
   )
   const totalTx = useMemo(
-    () => (iface ? iface.peers.reduce((a, p) => a + p.transferTx, 0) : 0),
+    () => (iface ? (iface.peers ?? []).reduce((a, p) => a + p.transferTx, 0) : 0),
     [iface],
   )
 

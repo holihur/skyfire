@@ -530,9 +530,9 @@ func (m *Manager) interfaceViewLocked(iface *store.Interface) (*InterfaceView, e
 		Name:       iface.Name,
 		PublicKey:  iface.PublicKey,
 		ListenPort: iface.ListenPort,
-		Addresses:  iface.Addresses,
+		Addresses:  nonNil(iface.Addresses),
 		MTU:        iface.MTU,
-		DNS:        iface.DNS,
+		DNS:        nonNil(iface.DNS),
 		Up:         iface.Up,
 		Running:    st.Running,
 		DryRun:     m.dryRun,
@@ -541,6 +541,7 @@ func (m *Manager) interfaceViewLocked(iface *store.Interface) (*InterfaceView, e
 		TotalPeers: len(iface.Peers),
 		TransferRx: st.TransferAggRx(),
 		TransferTx: st.TransferAggTx(),
+		Peers:      make([]*PeerView, 0, len(iface.Peers)),
 	}
 	for _, p := range iface.Peers {
 		live := st.Peer(p.PublicKey)
@@ -549,9 +550,9 @@ func (m *Manager) interfaceViewLocked(iface *store.Interface) (*InterfaceView, e
 			PublicKey:           p.PublicKey,
 			PresharedKey:        p.PresharedKey,
 			Address:             p.Address,
-			AllowedIPs:          p.AllowedIPs,
-			ClientRoutes:        p.ClientRoutes,
-			DNS:                 p.DNS,
+			AllowedIPs:          nonNil(p.AllowedIPs),
+			ClientRoutes:        nonNil(p.ClientRoutes),
+			DNS:                 nonNil(p.DNS),
 			Endpoint:            p.Endpoint,
 			PersistentKeepalive: p.PersistentKeepalive,
 			Description:         p.Description,

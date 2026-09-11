@@ -40,8 +40,9 @@ export default function InterfaceCard({ iface, onDeleted, onEdited }: Props) {
           ? t('iface.wouldRun')
           : t('iface.notRunning')
 
-  const totalRx = useMemo(() => iface.peers.reduce((a, p) => a + p.transferRx, 0), [iface.peers])
-  const totalTx = useMemo(() => iface.peers.reduce((a, p) => a + p.transferTx, 0), [iface.peers])
+  const peers = iface.peers ?? []
+  const totalRx = useMemo(() => peers.reduce((a, p) => a + p.transferRx, 0), [peers])
+  const totalTx = useMemo(() => peers.reduce((a, p) => a + p.transferTx, 0), [peers])
 
   const toggle = async () => {
     setApplying(true)

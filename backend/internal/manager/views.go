@@ -4,6 +4,14 @@ import (
 	"time"
 )
 
+// nonNil ensures JSON slice fields serialize as [] instead of null.
+func nonNil(s []string) []string {
+	if s == nil {
+		return []string{}
+	}
+	return s
+}
+
 // InterfacePatch describes mutable fields of an interface used by the update
 // endpoint. Nil means "leave unchanged".
 type InterfacePatch struct {

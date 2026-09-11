@@ -148,7 +148,7 @@ export default function PeerDetailDialog({ open, onOpenChange, ifaceName, peer, 
             />
             <Info label={t('peerDetail.info.handshake')} value={fmtAge(peer.latestHandshake, lang)} />
             <Info label={t('peerDetail.info.transfer')} value={`↑ ${fmtBytes(peer.transferTx)} · ↓ ${fmtBytes(peer.transferRx)}`} />
-            <Info label={t('peerDetail.info.clientRoutes')} value={peer.clientRoutes.join(', ')} mono />
+            <Info label={t('peerDetail.info.clientRoutes')} value={(peer.clientRoutes ?? []).join(', ')} mono />
             <Info
               label={t('peerDetail.info.keepalive')}
               value={peer.persistentKeepalive ? t('peerDetail.info.keepaliveS', { value: peer.persistentKeepalive }) : t('peerDetail.info.keepaliveOff')}
