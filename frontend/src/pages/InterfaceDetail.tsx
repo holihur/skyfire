@@ -17,6 +17,7 @@ import {
 } from '@radix-ui/react-icons'
 import { api, openDownload } from '../lib/api'
 import { useToast } from '../components/Toast'
+import { useI18n } from '../i18n'
 import { fmtBytes, fmtAge, shortKey, ipOf } from '../lib/format'
 import StatusBadge from '../components/StatusBadge'
 import PeerFormDialog from '../components/PeerFormDialog'
@@ -28,6 +29,7 @@ import type { Peer, WireGuardInterface } from '../lib/types'
 export default function InterfaceDetail() {
   const { name = '' } = useParams()
   const { push } = useToast()
+  const { t, lang } = useI18n()
   const [iface, setIface] = useState<WireGuardInterface | null>(null)
   const [showPri, setShowPri] = useState(false)
   const [priKey, setPriKey] = useState('')
@@ -69,20 +71,26 @@ export default function InterfaceDetail() {
 
   if (!iface) {
     return (
-      <div className="mx-auto max-w-6xl py-24 text-center text-slate-400">
-        Loading interface…
+      <div className="mx-auto max-w-6xl py-24 text-center text-muted">
+        {t('iface.loading')}
       </div>
     )
   }
 
   const tone = !iface.up ? 'idle' : iface.running ? 'ok' : 'err'
-  const status = !iface.up ? 'Disabled' : iface.running ? 'Running' : iface.dryRun ? 'Would run (dry-run)' : 'Not running'
+  const status = !iface.up
+    ? t('iface.disabled')
+    : iface.running
+      ? t('iface.running')
+      : iface.dryRun
+        ? t('iface.wouldRun')
+        : t('iface.notRunning')
 
   const toggleUp = async () => {
     try {
       const updated = await api.setInterfaceUp(iface.name, !iface.up)
       setIface(updated)
-      push(updated.up ? 'Interface enabled' : 'Interface disabled', 'success')
+      push(updated.up ? t('iface.update.on') : t('iface.update.off'), 'success')
     } catch (err) {
       push(String(err), 'error')
     }
@@ -103,9 +111,9 @@ export default function InterfaceDetail() {
   const copy = async (text: string, label: string) => {
     try {
       await navigator.clipboard.writeText(text)
-      push(`${label} copied`, 'success')
+      push(t('common.copied', { label }), 'success')
     } catch {
-      push('Clipboard unavailable', 'error')
+      push(t('common.clipboardUnavailable'), 'error')
     }
   }
 
@@ -114,78 +122,79 @@ export default function InterfaceDetail() {
       await api.deletePeer(iface.name, p.publicKey)
       setDeletePeerTarget(null)
       await load()
-      push(`Peer ${p.name} removed`, 'success')
+      push(t('iface.peer.removeToast', { name: p.name }), 'success')
     } catch (err) {
       push(String(err), 'error')
     }
   }
 
+  const menuItem =
+    'flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-fg2 hover:bg-hover/10 hover:text-fg'
+
   return (
     <div className="mx-auto max-w-6xl">
       <Link
         to="/"
-        className="mb-4 inline-flex items-center gap-1.5 text-sm text-slate-400 transition hover:text-white"
+        className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted transition hover:text-fg"
       >
-        <ArrowLeftIcon className="h-4 w-4" /> Interfaces
+        <ArrowLeftIcon className="h-4 w-4" /> {t('iface.back')}
       </Link>
 
       <div className="card p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-2xl font-semibold text-white">{iface.name}</h1>
+              <h1 className="text-2xl font-semibold text-fg">{iface.name}</h1>
               <StatusBadge tone={tone} label={status} />
               <label className="flex cursor-pointer items-center gap-2">
                 <Switch.Root
                   checked={iface.up}
                   onCheckedChange={toggleUp}
-                  className="relative h-6 w-11 rounded-full bg-[#1e2a45] transition data-[state=checked]:bg-sky-600"
+                  className="relative h-6 w-11 rounded-full bg-edge2 transition data-[state=checked]:bg-sky-600"
                 >
                   <Switch.Thumb className="block h-5 w-5 translate-x-0.5 rounded-full bg-white transition data-[state=checked]:translate-x-[22px]" />
                 </Switch.Root>
-                <span className="text-xs text-slate-400">
-                  {iface.up ? 'enabled' : 'disabled'}
-                </span>
+                <span className="text-xs text-muted">{iface.up ? t('iface.enabled') : t('iface.disabled')}</span>
               </label>
             </div>
             <dl className="mt-3 grid grid-cols-2 gap-x-8 gap-y-2 text-sm sm:grid-cols-3 lg:grid-cols-4">
-              <KV k="Listen port" v={iface.listenPort ? String(iface.listenPort) : 'random'} />
-              <KV k="Addresses" v={iface.addresses.join(', ')} mono />
+              <KV k={t('iface.listenPort')} v={iface.listenPort ? String(iface.listenPort) : t('iface.randomPort')} />
+              <KV k={t('iface.addresses')} v={iface.addresses.join(', ')} mono />
               <KV k="MTU" v={String(iface.mtu)} />
-              <KV k="Peers" v={`${iface.connectedPeers}/${iface.totalPeers} connected`} />
+              <KV k={t('iface.stat.peers')} v={t('iface.peersCount', { conn: iface.connectedPeers, total: iface.totalPeers })} />
             </dl>
           </div>
 
           <div className="flex flex-col items-end gap-3">
             <div className="grid grid-cols-2 gap-3 text-center">
-              <MiniStat label="Download" value={fmtBytes(totalRx)} />
-              <MiniStat label="Upload" value={fmtBytes(totalTx)} />
+              <MiniStat label={t('iface.stat.download')} value={fmtBytes(totalRx)} />
+              <MiniStat label={t('iface.stat.upload')} value={fmtBytes(totalTx)} />
             </div>
             <div className="flex gap-2">
               <button className="btn-ghost" onClick={() => setEditIface(true)}>
-                <Pencil1Icon className="h-4 w-4" /> Edit
+                <Pencil1Icon className="h-4 w-4" /> {t('iface.edit')}
               </button>
               <button className="btn-ghost" onClick={() => openDownload(api.serverConfigUrl(iface.name))}>
-                <DownloadIcon className="h-4 w-4" /> Server config
+                <DownloadIcon className="h-4 w-4" /> {t('iface.srvConf')}
               </button>
             </div>
           </div>
         </div>
 
-        <div className="mt-5 space-y-2 border-t border-[#1e2a45] pt-4">
+        <div className="mt-5 space-y-2 border-t border-edge pt-4">
           <KeyRow
-            label="Public key"
+            label={t('iface.pubkey')}
             value={iface.publicKey}
-            onCopy={() => copy(iface.publicKey, 'Public key')}
+            onCopy={() => copy(iface.publicKey, t('iface.pubkey'))}
           />
           <KeyRow
-            label="Private key"
+            label={t('iface.prikey')}
             value={showPri ? priKey : '••••••••••••••••••••••••••••••••'}
             masked={!showPri}
             action={
               <button
                 className="btn-ghost !p-1.5"
-                title="Toggle private key"
+                title={t('iface.revealPriFirst')}
                 onClick={revealPri}
               >
                 {showPri ? <EyeOpenIcon className="h-4 w-4" /> : <EyeClosedIcon className="h-4 w-4" />}
@@ -193,8 +202,8 @@ export default function InterfaceDetail() {
             }
             onCopy={
               showPri
-                ? () => copy(priKey, 'Private key')
-                : () => push('Reveal the private key first', 'info')
+                ? () => copy(priKey, t('iface.prikey'))
+                : () => push(t('iface.revealPriFirst'), 'info')
             }
           />
         </div>
@@ -202,19 +211,19 @@ export default function InterfaceDetail() {
 
       <Tabs.Root defaultValue="peers" className="mt-6">
         <Tabs.List className="mb-4 flex items-center justify-between gap-3">
-          <div className="flex gap-1 rounded-xl border border-[#263450] bg-[#0a1426] p-1">
+          <div className="flex gap-1 rounded-xl border border-edge2 bg-inset p-1">
             <Tabs.Trigger value="peers" className={tabCls}>
-              Peers ({iface.peers.length})
+              {t('iface.stat.peers')} ({iface.peers.length})
             </Tabs.Trigger>
             <Tabs.Trigger value="conf" className={tabCls}>
-              Server config
+              {t('iface.srvConf')}
             </Tabs.Trigger>
           </div>
           <Tabs.Content value="peers" className="hidden">
             <span />
           </Tabs.Content>
           <button className="btn-primary" onClick={() => setPeerForm({ open: true, peer: null })}>
-            <PlusIcon className="h-4 w-4" /> Add peer
+            <PlusIcon className="h-4 w-4" /> {t('iface.addPeer')}
           </button>
         </Tabs.List>
 
@@ -222,11 +231,9 @@ export default function InterfaceDetail() {
           {iface.peers.length === 0 ? (
             <div className="card flex flex-col items-center gap-3 py-16 text-center">
               <span className="text-3xl">👥</span>
-              <p className="text-slate-400">
-                No peers yet. Add devices like phones and laptops.
-              </p>
+              <p className="text-muted">{t('iface.peer.noPeers')}</p>
               <button className="btn-primary" onClick={() => setPeerForm({ open: true, peer: null })}>
-                <PlusIcon className="h-4 w-4" /> Add first peer
+                <PlusIcon className="h-4 w-4" /> {t('iface.addfirstPeer')}
               </button>
             </div>
           ) : (
@@ -234,71 +241,71 @@ export default function InterfaceDetail() {
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead>
-                    <tr className="border-b border-[#1e2a45] text-xs uppercase tracking-wide text-slate-500">
-                      <th className="px-4 py-3 font-medium">Peer</th>
-                      <th className="px-4 py-3 font-medium">Address</th>
-                      <th className="hidden px-4 py-3 font-medium lg:table-cell">Public key</th>
-                      <th className="hidden px-4 py-3 font-medium md:table-cell">Status</th>
-                      <th className="hidden px-4 py-3 font-medium md:table-cell">Last handshake</th>
-                      <th className="hidden px-4 py-3 font-medium sm:table-cell">Transfer</th>
-                      <th className="px-4 py-3 text-right font-medium">Actions</th>
+                    <tr className="border-b border-edge text-xs uppercase tracking-wide text-faint">
+                      <th className="px-4 py-3 font-medium">{t('iface.peerTable.name')}</th>
+                      <th className="px-4 py-3 font-medium">{t('iface.peerTable.address')}</th>
+                      <th className="hidden px-4 py-3 font-medium lg:table-cell">{t('iface.peerTable.pubkey')}</th>
+                      <th className="hidden px-4 py-3 font-medium md:table-cell">{t('iface.peerTable.status')}</th>
+                      <th className="hidden px-4 py-3 font-medium md:table-cell">{t('iface.peerTable.handshake')}</th>
+                      <th className="hidden px-4 py-3 font-medium sm:table-cell">{t('iface.peerTable.transfer')}</th>
+                      <th className="px-4 py-3 text-right font-medium">{t('iface.actions')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {iface.peers.map((p) => (
                       <tr
                         key={p.publicKey}
-                        className="border-b border-[#161f33] last:border-0 hover:bg-white/[0.02]"
+                        className="border-b border-edge3 last:border-0 hover:bg-hover/5"
                       >
                         <td className="px-4 py-3">
                           <button
-                            className="font-medium text-slate-100 hover:text-sky-300"
+                            className="font-medium text-fg hover:text-brand"
                             onClick={() => setPeerDetail(p)}
                           >
                             {p.name}
                           </button>
-                          <div className="text-xs text-slate-500">
+                          <div className="text-xs text-faint">
                             {p.endpoint || p.presharedKey ? 'psk·on' : ''}
                             {p.endpoint ? ` · ${p.endpoint}` : ''}
                           </div>
                         </td>
-                        <td className="mono px-4 py-3 text-slate-300">{ipOf(p.address)}</td>
+                        <td className="mono px-4 py-3 text-fg2">{ipOf(p.address)}</td>
                         <td className="hidden lg:table-cell">
                           <button
-                            className="mono text-slate-400 hover:text-sky-300"
-                            onClick={() => copy(p.publicKey, 'Public key')}
-                            title="Copy public key"
+                            className="mono text-muted hover:text-brand"
+                            onClick={() => copy(p.publicKey, t('iface.pubkey'))}
+                            title={t('iface.peer.copyPubkey')}
                           >
                             {shortKey(p.publicKey, 20)}
                           </button>
                         </td>
                         <td className="hidden md:table-cell">
                           {p.connected ? (
-                            <StatusBadge tone="ok" label="connected" />
+                            <StatusBadge tone="ok" label={t('iface.peer.connected')} />
                           ) : (
-                            <StatusBadge tone="idle" label="idle" />
+                            <StatusBadge tone="idle" label={t('iface.peer.idle')} />
                           )}
                         </td>
-                        <td className="hidden text-slate-400 md:table-cell">
-                          {fmtAge(p.latestHandshake)}
+                        <td className="hidden text-muted md:table-cell">
+                          {fmtAge(p.latestHandshake, lang)}
                         </td>
-                        <td className="mono hidden text-slate-300 sm:table-cell">
+                        <td className="mono hidden text-fg2 sm:table-cell">
                           ↑ {fmtBytes(p.transferTx)} ↓ {fmtBytes(p.transferRx)}
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex justify-end gap-1">
-                            <IconBtn title="Show config & QR" onClick={() => setPeerDetail(p)}>
+                            <IconBtn title={t('iface.peer.showQR')} onClick={() => setPeerDetail(p)}>
                               <MobileIcon className="h-4 w-4" />
                             </IconBtn>
                             <IconBtn
-                              title="Download client config"
+                              title={t('iface.peer.downloadClient')}
                               onClick={() => openDownload(api.peerConfigUrl(iface.name, p.publicKey))}
                             >
                               <DownloadIcon className="h-4 w-4" />
                             </IconBtn>
                             <DropdownMenu.Root>
                               <DropdownMenu.Trigger asChild>
-                                <IconBtn title="More">
+                                <IconBtn title={t('iface.peer.more')}>
                                   <DotsHorizontalIcon className="h-4 w-4" />
                                 </IconBtn>
                               </DropdownMenu.Trigger>
@@ -306,19 +313,19 @@ export default function InterfaceDetail() {
                                 <DropdownMenu.Content
                                   align="end"
                                   sideOffset={6}
-                                  className="z-50 min-w-40 rounded-xl border border-[#263450] bg-[#0d1830] p-1 shadow-2xl shadow-black/50"
+                                  className="z-50 min-w-40 rounded-xl border border-edge2 bg-panel2 p-1 shadow-2xl shadow-shade/50"
                                 >
                                   <DropdownMenu.Item
-                                    className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-white/5 hover:text-white"
+                                    className={menuItem}
                                     onSelect={() => setPeerForm({ open: true, peer: p })}
                                   >
-                                    <Pencil1Icon className="h-4 w-4" /> Edit
+                                    <Pencil1Icon className="h-4 w-4" /> {t('iface.editPeer')}
                                   </DropdownMenu.Item>
                                   <DropdownMenu.Item
-                                    className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-300 hover:bg-red-950/40 hover:text-red-100"
+                                    className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-err hover:bg-err/10 hover:text-err"
                                     onSelect={() => setDeletePeerTarget(p)}
                                   >
-                                    <TrashIcon className="h-4 w-4" /> Delete
+                                    <TrashIcon className="h-4 w-4" /> {t('iface.delete')}
                                   </DropdownMenu.Item>
                                 </DropdownMenu.Content>
                               </DropdownMenu.Portal>
@@ -337,18 +344,18 @@ export default function InterfaceDetail() {
         <Tabs.Content value="conf">
           <div className="card p-5">
             <div className="mb-3 flex items-center justify-between">
-              <span className="text-sm text-slate-400">wg-quick style export</span>
+              <span className="text-sm text-muted">{t('iface.conf.wgQuick')}</span>
               <button
                 className="btn-ghost"
                 onClick={() => {
                   navigator.clipboard.writeText(serverConf)
-                  push('Server config copied', 'success')
+                  push(t('iface.copySrvConf'), 'success')
                 }}
               >
-                <CopyIcon className="h-4 w-4" /> Copy
+                <CopyIcon className="h-4 w-4" /> {t('iface.conf.copy')}
               </button>
             </div>
-            <pre className="mono max-h-96 overflow-auto rounded-xl border border-[#1e2a45] bg-[#070d1a] p-4 text-slate-300">
+            <pre className="mono max-h-96 overflow-auto rounded-xl border border-edge bg-page p-4 text-fg2">
               {serverConf}
             </pre>
           </div>
@@ -381,13 +388,15 @@ export default function InterfaceDetail() {
         />
       )}
       {deletePeerTarget && (
-        <ConfirmDialog open onOpenChange={() => setDeletePeerTarget(null)}
-          title={`Delete ${deletePeerTarget.name}?`}
+        <ConfirmDialog
+          open
+          onOpenChange={() => setDeletePeerTarget(null)}
+          title={t('iface.peer.removeTitle', { name: deletePeerTarget.name })}
           danger
-          confirmLabel="Delete peer"
+          confirmLabel={t('iface.peer.deletePeer')}
           onConfirm={() => void deletePeer(deletePeerTarget)}
         >
-          <p>This removes the peer and its client configuration will stop working.</p>
+          <p>{t('iface.peer.removeBody')}</p>
         </ConfirmDialog>
       )}
       {editIface && (
@@ -414,12 +423,12 @@ function KeyRow({ label, value, masked, onCopy, action }: {
 }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="w-24 shrink-0 text-xs uppercase tracking-wide text-slate-500">{label}</span>
-      <code className={`mono flex-1 truncate rounded-lg border border-[#1e2a45] bg-[#0a1426] px-3 py-2 text-slate-300 ${masked ? 'tracking-widest' : ''}`}>
+      <span className="w-24 shrink-0 text-xs uppercase tracking-wide text-faint">{label}</span>
+      <code className={`mono flex-1 truncate rounded-lg border border-edge bg-inset px-3 py-2 text-fg2 ${masked ? 'tracking-widest' : ''}`}>
         {value}
       </code>
       {action}
-      <button className="btn-ghost !p-1.5" title={`Copy ${label.toLowerCase()}`} onClick={onCopy}>
+      <button className="btn-ghost !p-1.5" title={label} onClick={onCopy}>
         <CopyIcon className="h-4 w-4" />
       </button>
     </div>
@@ -429,17 +438,17 @@ function KeyRow({ label, value, masked, onCopy, action }: {
 function KV({ k, v, mono }: { k: string; v: string; mono?: boolean }) {
   return (
     <div>
-      <dt className="text-[11px] uppercase tracking-wide text-slate-500">{k}</dt>
-      <dd className={`truncate text-slate-200 ${mono ? 'mono' : ''}`}>{v}</dd>
+      <dt className="text-[11px] uppercase tracking-wide text-faint">{k}</dt>
+      <dd className={`truncate text-fg2 ${mono ? 'mono' : ''}`}>{v}</dd>
     </div>
   )
 }
 
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-28 rounded-xl border border-[#1e2a45] bg-[#0a1426] px-4 py-2.5">
-      <div className="text-[11px] uppercase tracking-wide text-slate-500">{label}</div>
-      <div className="mono text-sm text-sky-200">{value}</div>
+    <div className="min-w-28 rounded-xl border border-edge bg-inset px-4 py-2.5">
+      <div className="text-[11px] uppercase tracking-wide text-faint">{label}</div>
+      <div className="mono text-sm text-info">{value}</div>
     </div>
   )
 }
@@ -458,4 +467,4 @@ function IconBtn({ title, onClick, children }: { title: string; onClick?: () => 
 }
 
 const tabCls =
-  'rounded-lg px-3 py-1.5 text-sm text-slate-400 transition hover:text-white data-selected:bg-white/5 data-selected:text-white'
+  'rounded-lg px-3 py-1.5 text-sm text-muted transition hover:text-fg data-selected:bg-hover/10 data-selected:text-fg'

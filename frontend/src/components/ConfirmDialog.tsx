@@ -1,4 +1,5 @@
 import Dialog from './Dialog'
+import { useI18n } from '../i18n'
 
 interface Props {
   open: boolean
@@ -16,9 +17,10 @@ export default function ConfirmDialog({
   title,
   children,
   onConfirm,
-  confirmLabel = 'Confirm',
+  confirmLabel,
   danger,
 }: Props) {
+  const { t } = useI18n()
   return (
     <Dialog
       open={open}
@@ -34,10 +36,10 @@ export default function ConfirmDialog({
               onConfirm()
             }}
           >
-            {confirmLabel}
+            {confirmLabel ?? t('common.confirm')}
           </button>
           <button className="btn-ghost" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t('common.cancel')}
           </button>
         </>
       }

@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
+import { useI18n } from '../i18n'
 
 export default function Login() {
   const { login } = useAuth()
+  const { t } = useI18n()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -14,26 +16,26 @@ export default function Login() {
     setError('')
     const ok = await login(username.trim(), password)
     setBusy(false)
-    if (!ok) setError('Invalid username or password')
+    if (!ok) setError(t('login.invalid'))
   }
 
   return (
     <div className="flex h-full items-center justify-center">
       <form
         onSubmit={submit}
-        className="card w-80 space-y-4 p-8 shadow-2xl shadow-black/40"
+        className="card w-80 space-y-4 p-8 shadow-2xl shadow-shade/40"
       >
         <div className="text-center">
           <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-700 text-2xl font-bold text-white shadow-lg shadow-sky-900/50">
             S
           </div>
-          <h1 className="text-xl font-semibold text-white">Skyfire</h1>
-          <p className="mt-1 text-sm text-slate-400">WireGuard visual console</p>
+          <h1 className="text-xl font-semibold text-fg">Skyfire</h1>
+          <p className="mt-1 text-sm text-muted">{t('login.subtitle')}</p>
         </div>
 
         <div>
           <label className="label" htmlFor="username">
-            Username
+            {t('login.username')}
           </label>
           <input
             id="username"
@@ -49,27 +51,27 @@ export default function Login() {
 
         <div>
           <label className="label" htmlFor="password">
-            Password
+            {t('login.password')}
           </label>
           <input
             id="password"
             className="input"
             type="password"
             autoComplete="current-password"
-            placeholder="Password shown by the daemon"
+            placeholder={t('login.passwordPlaceholder')}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
         </div>
 
-        {error && <p className="text-sm text-red-400">{error}</p>}
+        {error && <p className="text-sm text-err">{error}</p>}
 
         <button
           type="submit"
           className="btn-primary w-full"
           disabled={busy || !username.trim() || !password}
         >
-          {busy ? 'Signing in…' : 'Sign in'}
+          {busy ? t('login.signingIn') : t('login.signin')}
         </button>
       </form>
     </div>

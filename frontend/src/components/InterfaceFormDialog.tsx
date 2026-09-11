@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import Dialog from './Dialog'
 import { api } from '../lib/api'
 import { useToast } from './Toast'
+import { useI18n } from '../i18n'
 import { parseList, joinList } from '../lib/format'
 import type { WireGuardInterface } from '../lib/types'
 
@@ -14,6 +15,7 @@ interface Props {
 
 export default function InterfaceFormDialog({ open, onOpenChange, onDone, existing }: Props) {
   const { push } = useToast()
+  const { t } = useI18n()
   const editing = !!existing
   const [busy, setBusy] = useState(false)
   const [name, setName] = useState('')
@@ -55,11 +57,11 @@ export default function InterfaceFormDialog({ open, onOpenChange, onDone, existi
           up: body.up,
         }
         const updated = await api.updateInterface(existing!.name, patch)
-        push(`Interface ${updated.name} updated`, 'success')
+        push(t('iface.updated', { name: updated.name }), 'success')
         onDone(updated)
       } else {
         const created = await api.createInterface(body)
-        push(`Interface ${created.name} created`, 'success')
+        push(t('iface.created', { name: created.name }), 'success')
         onDone(created)
       }
       onOpenChange(false)
@@ -70,23 +72,21 @@ export default function InterfaceFormDialog({ open, onOpenChange, onDone, existi
     }
   }
 
+  const checkRow = 'flex items-center justify-between rounded-lg border border-edge2 bg-inset px-3 py-2.5'
+
   return (
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
-      title={editing ? `Edit ${existing!.name}` : 'New interface'}
-      description={
-        editing
-          ? 'Changes are applied to the live interface immediately.'
-          : 'WireGuard keys are generated automatically. The first address is the server address.'
-      }
+      title={editing ? t('ifaceForm.editTitle', { name: existing!.name }) : t('ifaceForm.new')}
+      description={editing ? t('ifaceForm.editDesc') : t('ifaceForm.createDesc')}
       footer={
         <>
           <button className="btn-primary" onClick={submit} disabled={busy}>
-            {busy ? 'Saving…' : editing ? 'Save changes' : 'Create interface'}
+            {busy ? t('common.saving') : editing ? t('ifaceForm.saveChanges') : t('ifaceForm.create')}
           </button>
           <button className="btn-ghost" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t('common.cancel')}
           </button>
         </>
       }
@@ -94,7 +94,7 @@ export default function InterfaceFormDialog({ open, onOpenChange, onDone, existi
       <form onSubmit={submit} className="space-y-4">
         <div>
           <label className="label" htmlFor="iface-name">
-            Interface name
+            {t('ifaceForm.name')}
           </label>
           <input
             id="iface-name"
@@ -109,7 +109,7 @@ export default function InterfaceFormDialog({ open, onOpenChange, onDone, existi
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="label" htmlFor="iface-port">
-              Listen port
+              {t('ifaceForm.listenPort')}
             </label>
             <input
               id="iface-port"
@@ -117,14 +117,14 @@ export default function InterfaceFormDialog({ open, onOpenChange, onDone, existi
               type="number"
               min={0}
               max={65535}
-              placeholder="0 = random"
+              placeholder={t('ifaceForm.randomPort')}
               value={listenPort}
               onChange={(e) => setListenPort(e.target.value)}
             />
           </div>
           <div>
             <label className="label" htmlFor="iface-mtu">
-              MTU
+              {t('ifaceForm.mtu')}
             </label>
             <input
               id="iface-mtu"
@@ -140,7 +140,7 @@ export default function InterfaceFormDialog({ open, onOpenChange, onDone, existi
 
         <div>
           <label className="label" htmlFor="iface-addresses">
-            Addresses (CIDR, one per line)
+            {t('ifaceForm.addresses')}
           </label>
           <textarea
             id="iface-addresses"
@@ -153,7 +153,7 @@ export default function InterfaceFormDialog({ open, onOpenChange, onDone, existi
 
         <div>
           <label className="label" htmlFor="iface-dns">
-            DNS for clients (one per line)
+            {t('ifaceForm.dns')}
           </label>
           <textarea
             id="iface-dns"
@@ -164,8 +164,8 @@ export default function InterfaceFormDialog({ open, onOpenChange, onDone, existi
           />
         </div>
 
-        <label className="flex cursor-pointer items-center justify-between rounded-lg border border-[#263450] bg-[#0a1426] px-3 py-2.5">
-          <span className="text-sm text-slate-300">Create enabled (start now)</span>
+        <label className={checkRow}>
+          <span className="text-sm text-fg2">{t('ifaceForm.createEnabled')}</span>
           <input
             type="checkbox"
             className="h-4 w-4 accent-sky-500"

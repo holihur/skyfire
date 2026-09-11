@@ -12,6 +12,7 @@ import {
 } from '@radix-ui/react-icons'
 import { api, openDownload } from '../lib/api'
 import { useToast } from './Toast'
+import { useI18n } from '../i18n'
 import { fmtBytes, shortKey } from '../lib/format'
 import StatusBadge from './StatusBadge'
 import type { WireGuardInterface } from '../lib/types'
@@ -24,16 +25,20 @@ interface Props {
 
 export default function InterfaceCard({ iface, onDeleted, onEdited }: Props) {
   const { push } = useToast()
+  const { t } = useI18n()
   const navigate = useNavigate()
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [applying, setApplying] = useState(false)
 
   const tone = !iface.up ? 'idle' : iface.running ? 'ok' : 'err'
   const status =
-    !iface.up ? 'Disabled'
-    : iface.running ? 'Running'
-    : iface.dryRun ? 'Would run (dry-run)'
-    : 'Not running'
+    !iface.up
+      ? t('iface.disabled')
+      : iface.running
+        ? t('iface.running')
+        : iface.dryRun
+          ? t('iface.wouldRun')
+          : t('iface.notRunning')
 
   const totalRx = useMemo(() => iface.peers.reduce((a, p) => a + p.transferRx, 0), [iface.peers])
   const totalTx = useMemo(() => iface.peers.reduce((a, p) => a + p.transferTx, 0), [iface.peers])
@@ -43,7 +48,7 @@ export default function InterfaceCard({ iface, onDeleted, onEdited }: Props) {
     try {
       const updated = await api.setInterfaceUp(iface.name, !iface.up)
       onEdited(updated)
-      push(updated.up ? `${iface.name} enabled` : `${iface.name} disabled`, 'success')
+      push(updated.up ? t('iface.enabledToast', { name: iface.name }) : t('iface.disabledToast', { name: iface.name }), 'success')
     } catch (err) {
       push(String(err), 'error')
     } finally {
@@ -55,7 +60,7 @@ export default function InterfaceCard({ iface, onDeleted, onEdited }: Props) {
     try {
       await api.deleteInterface(iface.name)
       onDeleted(iface.name)
-      push(`Interface ${iface.name} deleted`, 'success')
+      push(t('iface.deleted', { name: iface.name }), 'success')
     } catch (err) {
       push(String(err), 'error')
     }
@@ -64,9 +69,9 @@ export default function InterfaceCard({ iface, onDeleted, onEdited }: Props) {
   const copyPubkey = async () => {
     try {
       await navigator.clipboard.writeText(iface.publicKey)
-      push('Public key copied', 'success')
+      push(t('iface.copyPubkey'), 'success')
     } catch {
-      push('Clipboard unavailable', 'error')
+      push(t('common.clipboardUnavailable'), 'error')
     }
   }
 
@@ -74,33 +79,36 @@ export default function InterfaceCard({ iface, onDeleted, onEdited }: Props) {
     try {
       const cfg = await api.getText(api.serverConfigUrl(iface.name))
       await navigator.clipboard.writeText(cfg)
-      push('Server config copied', 'success')
+      push(t('iface.copySrvConf'), 'success')
     } catch (err) {
       push(String(err), 'error')
     }
   }
 
+  const itemCls =
+    'flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-fg2 hover:bg-hover/10 hover:text-fg'
+
   return (
-    <div className="card group relative overflow-hidden p-5 transition hover:border-[#2e3d5c] hover:shadow-lg hover:shadow-black/30">
+    <div className="card group relative overflow-hidden p-5 transition hover:border-edge2 hover:shadow-lg hover:shadow-shade/20">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <button
               onClick={() => navigate(`/interfaces/${iface.name}`)}
-              className="truncate text-lg font-semibold text-white transition group-hover:text-sky-300"
+              className="truncate text-lg font-semibold text-fg transition group-hover:text-brand"
             >
               {iface.name}
             </button>
             <StatusBadge tone={tone} label={status} />
           </div>
-          <div className="mt-1 text-xs text-slate-400">
-            {iface.up ? `${iface.listenPort || 'random port'} · ${iface.addresses.join(', ')}` : '—'}
+          <div className="mt-1 text-xs text-muted">
+            {iface.up ? `${iface.listenPort || t('iface.randomPort')} · ${iface.addresses.join(', ')}` : '—'}
           </div>
         </div>
 
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
-            <button className="btn-ghost !p-2" aria-label="Actions">
+            <button className="btn-ghost !p-2" aria-label={t('iface.actions')}>
               <DotsHorizontalIcon className="h-4 w-4" />
             </button>
           </DropdownMenu.Trigger>
@@ -108,46 +116,46 @@ export default function InterfaceCard({ iface, onDeleted, onEdited }: Props) {
             <DropdownMenu.Content
               align="end"
               sideOffset={6}
-              className="z-50 min-w-44 rounded-xl border border-[#263450] bg-[#0d1830] p-1 shadow-2xl shadow-black/50"
+              className="z-50 min-w-44 rounded-xl border border-edge2 bg-panel2 p-1 shadow-2xl shadow-shade/50"
             >
               <DropdownMenu.Item
-                className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-white/5 hover:text-white"
+                className={itemCls}
                 onSelect={() => navigate(`/interfaces/${iface.name}`)}
               >
-                <EyeOpenIcon className="h-4 w-4" /> Details
+                <EyeOpenIcon className="h-4 w-4" /> {t('iface.details')}
               </DropdownMenu.Item>
               <DropdownMenu.Item
-                className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-white/5 hover:text-white"
+                className={itemCls}
                 onSelect={toggle}
                 disabled={applying}
               >
                 {iface.up ? <StopIcon className="h-4 w-4" /> : <PlayIcon className="h-4 w-4" />}
-                {iface.up ? 'Disable' : 'Enable'}
+                {iface.up ? t('iface.disable') : t('iface.enable')}
               </DropdownMenu.Item>
               <DropdownMenu.Item
-                className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-white/5 hover:text-white"
+                className={itemCls}
                 onSelect={copyPubkey}
               >
-                <CopyIcon className="h-4 w-4" /> Copy public key
+                <CopyIcon className="h-4 w-4" /> {t('iface.copyPublicKey')}
               </DropdownMenu.Item>
               <DropdownMenu.Item
-                className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-white/5 hover:text-white"
+                className={itemCls}
                 onSelect={copyWgQuick}
               >
-                <CopyIcon className="h-4 w-4" /> Copy server config
+                <CopyIcon className="h-4 w-4" /> {t('iface.copyServerConf')}
               </DropdownMenu.Item>
               <DropdownMenu.Item
-                className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-white/5 hover:text-white"
+                className={itemCls}
                 onSelect={() => openDownload(api.serverConfigUrl(iface.name))}
               >
-                <DownloadIcon className="h-4 w-4" /> Download config
+                <DownloadIcon className="h-4 w-4" /> {t('iface.downloadConf')}
               </DropdownMenu.Item>
-              <DropdownMenu.Separator className="my-1 h-px bg-[#263450]" />
+              <DropdownMenu.Separator className="my-1 h-px bg-edge2" />
               <DropdownMenu.Item
-                className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-300 hover:bg-red-950/40 hover:text-red-100"
+                className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-err hover:bg-err/10 hover:text-err"
                 onSelect={() => setConfirmDelete(true)}
               >
-                <TrashIcon className="h-4 w-4" /> Delete
+                <TrashIcon className="h-4 w-4" /> {t('iface.delete')}
               </DropdownMenu.Item>
             </DropdownMenu.Content>
           </DropdownMenu.Portal>
@@ -155,33 +163,30 @@ export default function InterfaceCard({ iface, onDeleted, onEdited }: Props) {
       </div>
 
       <div className="mt-4 grid grid-cols-3 gap-3 text-center">
-        <Stat label="Peers" value={`${iface.connectedPeers}/${iface.totalPeers}`} sub="connected/total" />
-        <Stat label="Download" value={fmtBytes(totalRx)} sub="received" />
-        <Stat label="Upload" value={fmtBytes(totalTx)} sub="sent" />
+        <Stat label={t('iface.stat.peers')} value={`${iface.connectedPeers}/${iface.totalPeers}`} sub={t('iface.stat.connTotal')} />
+        <Stat label={t('iface.stat.download')} value={fmtBytes(totalRx)} sub={t('iface.stat.received')} />
+        <Stat label={t('iface.stat.upload')} value={fmtBytes(totalTx)} sub={t('iface.stat.sent')} />
       </div>
 
-      <div className="mt-4 flex items-center justify-between border-t border-[#1e2a45] pt-3">
-        <span className="mono text-[11px] text-slate-500">{shortKey(iface.publicKey, 22)}</span>
-        <button
-          className="btn-basic"
-          onClick={() => navigate(`/interfaces/${iface.name}`)}
-        >
-          Configure
+      <div className="mt-4 flex items-center justify-between border-t border-edge pt-3">
+        <span className="mono text-[11px] text-faint">{shortKey(iface.publicKey, 22)}</span>
+        <button className="btn-ghost" onClick={() => navigate(`/interfaces/${iface.name}`)}>
+          {t('iface.configure')}
         </button>
       </div>
 
       {confirmDelete && (
         <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-black/70 backdrop-blur-sm">
-          <div className="w-64 space-y-3 rounded-xl border border-red-800/60 bg-[#12060a] p-4">
-            <p className="text-sm text-red-200">
-              Delete <span className="font-semibold">{iface.name}</span> and all its peers?
+          <div className="w-64 space-y-3 rounded-xl border border-err/60 bg-err/10 p-4">
+            <p className="text-sm text-err">
+              {t('iface.delete.confirm', { name: iface.name })}
             </p>
             <div className="flex justify-end gap-2">
               <button className="btn-ghost" onClick={() => setConfirmDelete(false)}>
-                Cancel
+                {t('common.cancel')}
               </button>
               <button className="btn-danger" onClick={del}>
-                Delete
+                {t('iface.delete')}
               </button>
             </div>
           </div>
@@ -193,10 +198,10 @@ export default function InterfaceCard({ iface, onDeleted, onEdited }: Props) {
 
 function Stat({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
-    <div className="rounded-xl border border-[#1e2a45] bg-[#0a1426] px-2 py-2.5">
-      <div className="text-[11px] uppercase tracking-wide text-slate-500">{label}</div>
-      <div className="mt-0.5 text-base font-semibold text-white">{value}</div>
-      <div className="text-[11px] text-slate-500">{sub}</div>
+    <div className="rounded-xl border border-edge bg-inset px-2 py-2.5">
+      <div className="text-[11px] uppercase tracking-wide text-faint">{label}</div>
+      <div className="mt-0.5 text-base font-semibold text-fg">{value}</div>
+      <div className="text-[11px] text-faint">{sub}</div>
     </div>
   )
 }

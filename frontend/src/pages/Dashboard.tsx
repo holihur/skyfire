@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react'
 import { PlusIcon } from '@radix-ui/react-icons'
 import { api } from '../lib/api'
 import { useToast } from '../components/Toast'
+import { useI18n } from '../i18n'
 import InterfaceCard from '../components/InterfaceCard'
 import InterfaceFormDialog from '../components/InterfaceFormDialog'
 import type { WireGuardInterface } from '../lib/types'
 
 export default function Dashboard() {
   const { push } = useToast()
+  const { t } = useI18n()
   const [items, setItems] = useState<WireGuardInterface[]>([])
   const [createOpen, setCreateOpen] = useState(false)
   const [edit, setEdit] = useState<WireGuardInterface | null>(null)
@@ -31,22 +33,20 @@ export default function Dashboard() {
     <div className="mx-auto max-w-6xl">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-white">Interfaces</h1>
-          <p className="mt-0.5 text-sm text-slate-400">
-            Manage your WireGuard tunnels and their peers.
-          </p>
+          <h1 className="text-2xl font-semibold text-fg">{t('dashboard.title')}</h1>
+          <p className="mt-0.5 text-sm text-muted">{t('dashboard.subtitle')}</p>
         </div>
         <button className="btn-primary" onClick={() => setCreateOpen(true)}>
-          <PlusIcon className="h-4 w-4" /> New interface
+          <PlusIcon className="h-4 w-4" /> {t('dashboard.new')}
         </button>
       </div>
 
       {items.length === 0 ? (
         <div className="card flex flex-col items-center justify-center gap-4 py-20 text-center">
           <span className="text-4xl">🛜</span>
-          <p className="text-slate-400">No interfaces configured yet.</p>
+          <p className="text-muted">{t('dashboard.empty')}</p>
           <button className="btn-primary" onClick={() => setCreateOpen(true)}>
-            <PlusIcon className="h-4 w-4" /> Create your first interface
+            <PlusIcon className="h-4 w-4" /> {t('dashboard.createFirst')}
           </button>
         </div>
       ) : (

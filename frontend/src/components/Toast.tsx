@@ -32,10 +32,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           open={open}
           onOpenChange={setOpen}
           className={clsx(
-            'pointer-events-auto flex items-start gap-3 rounded-xl border px-4 py-3 shadow-xl shadow-black/40',
-            kind === 'success' && 'border-emerald-500/40 bg-[#071a13] text-emerald-200',
-            kind === 'error' && 'border-red-500/40 bg-[#1c0a0e] text-red-200',
-            kind === 'info' && 'border-sky-500/40 bg-[#0a1626] text-sky-200',
+            'pointer-events-auto flex items-start gap-3 rounded-xl border bg-panel2 px-4 py-3 shadow-xl shadow-shade/30',
+            kind === 'success' && 'border-ok/40 text-ok',
+            kind === 'error' && 'border-err/40 text-err',
+            kind === 'info' && 'border-info/40 text-info',
           )}
         >
           <span className="mt-0.5">

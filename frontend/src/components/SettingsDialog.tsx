@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import Dialog from './Dialog'
 import { api } from '../lib/api'
 import { useToast } from './Toast'
+import { useI18n } from '../i18n'
 import type { Settings } from '../lib/types'
 
 export default function SettingsDialog({
@@ -14,6 +15,7 @@ export default function SettingsDialog({
   onSaved?: () => void
 }) {
   const { push } = useToast()
+  const { t } = useI18n()
   const [saving, setSaving] = useState(false)
   const [s, setS] = useState<Settings>({ publicEndpoint: '' })
 
@@ -25,7 +27,7 @@ export default function SettingsDialog({
     setSaving(true)
     try {
       await api.saveSettings(s)
-      push('Settings saved', 'success')
+      push(t('common.saved'), 'success')
       onOpenChange(false)
       onSaved?.()
     } catch (err) {
@@ -39,15 +41,15 @@ export default function SettingsDialog({
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Settings"
-      description="Daemon-wide preferences used when generating client configurations."
+      title={t('common.settings')}
+      description={t('common.settingsDesc')}
       footer={
         <>
           <button className="btn-primary" onClick={save} disabled={saving}>
-            {saving ? 'Saving…' : 'Save'}
+            {saving ? t('common.saving') : t('common.save')}
           </button>
           <button className="btn-ghost" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t('common.cancel')}
           </button>
         </>
       }
@@ -55,18 +57,17 @@ export default function SettingsDialog({
       <div className="space-y-4">
         <div>
           <label className="label" htmlFor="public-endpoint">
-            Public endpoint
+            {t('settings.publicEndpoint')}
           </label>
           <input
             id="public-endpoint"
             className="input"
-            placeholder="vpn.example.com:51820"
+            placeholder={t('settings.publicEndpointPh')}
             value={s.publicEndpoint}
             onChange={(e) => setS({ ...s, publicEndpoint: e.target.value })}
           />
-          <p className="mt-1.5 text-xs text-slate-400">
-            Host and port clients should connect to. If the port is omitted the
-            interface's listen port is appended automatically.
+          <p className="mt-1.5 text-xs text-muted">
+            {t('settings.publicEndpointHelp')}
           </p>
         </div>
       </div>

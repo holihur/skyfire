@@ -3,7 +3,51 @@
 @tailwind utilities;
 
 :root {
+  color-scheme: light;
+  --c-page: 244 246 250;
+  --c-header: 255 255 255;
+  --c-panel: 255 255 255;
+  --c-panel2: 255 255 255;
+  --c-inset: 241 245 249;
+  --c-edge: 226 232 240;
+  --c-edge2: 203 213 225;
+  --c-edge3: 226 232 240;
+  --c-hover: 15 23 42;
+  --c-shade: 15 23 42;
+  --c-fg: 15 23 42;
+  --c-fg2: 51 65 85;
+  --c-muted: 71 85 105;
+  --c-faint: 100 116 139;
+  --c-ok: 5 150 105;
+  --c-warn: 217 119 6;
+  --c-err: 220 38 38;
+  --c-info: 2 132 199;
+  --c-brand: 2 132 199;
+  --c-scroll: 148 163 184;
+}
+
+.dark {
   color-scheme: dark;
+  --c-page: 7 13 26;
+  --c-header: 10 20 38;
+  --c-panel: 14 25 48;
+  --c-panel2: 13 24 48;
+  --c-inset: 10 20 38;
+  --c-edge: 30 42 69;
+  --c-edge2: 38 52 80;
+  --c-edge3: 22 31 51;
+  --c-hover: 255 255 255;
+  --c-shade: 0 0 0;
+  --c-fg: 255 255 255;
+  --c-fg2: 203 213 225;
+  --c-muted: 148 163 184;
+  --c-faint: 100 116 139;
+  --c-ok: 110 231 183;
+  --c-warn: 252 211 77;
+  --c-err: 252 165 165;
+  --c-info: 125 211 252;
+  --c-brand: 125 211 252;
+  --c-scroll: 51 65 85;
 }
 
 html,
@@ -13,7 +57,7 @@ body,
 }
 
 body {
-  @apply bg-[#070d1a] text-slate-200 antialiased;
+  @apply bg-page text-fg antialiased;
 }
 
 ::-webkit-scrollbar {
@@ -24,7 +68,8 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  @apply rounded-full bg-slate-700/60;
+  border-radius: 9999px;
+  background-color: rgb(var(--c-scroll) / 0.6);
 }
 
 @layer components {
@@ -36,20 +81,20 @@ body {
     @apply btn bg-gradient-to-b from-[#0ea5e9] to-[#0284c7] px-4 py-2 text-white shadow-lg shadow-sky-900/40 hover:brightness-110;
   }
   .btn-ghost {
-    @apply btn border border-[#263450] bg-[#0f1a30] px-3 py-1.5 text-slate-300 hover:bg-[#16233d] hover:text-white;
+    @apply btn border border-edge2 bg-panel2 px-3 py-1.5 text-fg2 hover:bg-hover/5 hover:text-fg;
   }
   .btn-danger {
-    @apply btn border border-red-900/60 bg-red-950/40 px-3 py-1.5 text-red-300 hover:bg-red-900/40 hover:text-red-100;
+    @apply btn border border-err/50 bg-err/10 px-3 py-1.5 text-err hover:bg-err/20 hover:text-err;
   }
   .input {
-    @apply w-full rounded-lg border border-[#263450] bg-[#0a1426] px-3 py-2 text-sm text-slate-100
-           placeholder:text-slate-500 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30;
+    @apply w-full rounded-lg border border-edge2 bg-inset px-3 py-2 text-sm text-fg
+           placeholder:text-faint focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30;
   }
   .label {
-    @apply mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-400;
+    @apply mb-1.5 block text-xs font-medium uppercase tracking-wide text-muted;
   }
   .card {
-    @apply rounded-2xl border border-[#1e2a45] bg-[#0e1930]/70;
+    @apply rounded-2xl border border-edge bg-panel shadow-sm shadow-shade/5;
   }
   .mono {
     @apply font-mono text-xs;
