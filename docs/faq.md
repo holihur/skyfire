@@ -91,10 +91,11 @@ unit 使用 `ProtectSystem=strict` + `ReadWritePaths=/etc/skyfire`，配置必�
 不支持。一个进程只维护一个隧道；多实例会因固定接口名（`skyfire`/`Skyfire`）、
 共享配置文件和共享路由表 `51821` 而冲突。
 
-### 连接字符串保存了但托盘没自动连？
+### `-connect` 会立即连接吗？
 
-这是预期行为：`-connect` 只负责保存。首次运行（本就无连接字符串）才会弹框并
-自动连接。要用托盘菜单的 **Connect**，或用 `-cli` 让启动即连接。
+会。`skyfire-client -connect '<URL>'` 保存连接字符串并立即建立隧道（托盘启动即
+已连接）。首次运行（尚无连接字符串）则弹框输入后自动连接。若只想保存连接字符串，
+可不带 `-connect` 启动，再用托盘菜单设置。
 
 ### 报 "connection string is not a Skyfire peer config URL"？
 

@@ -19,7 +19,7 @@ var version = "dev"
 
 func main() {
 	var (
-		connect     = flag.String("connect", "", "Skyfire connection string (peer config URL with token); saved and used on later runs")
+		connect     = flag.String("connect", "", "Skyfire connection string (peer config URL with token); saved and connected immediately (tray starts connected)")
 		confPath    = flag.String("conf", "", "use a local WireGuard .conf file instead of fetching from the server")
 		dryRun      = flag.Bool("dry-run", false, "validate the configuration without creating a tunnel")
 		cliMode     = flag.Bool("cli", false, "run in the terminal instead of the system tray")
@@ -53,6 +53,9 @@ func main() {
 	}
 
 	a := app.New(store, log)
+	if *connect != "" {
+		a.SetAutoConnect(true)
+	}
 	if *dryRun {
 		a.SetDryRun(true)
 	}

@@ -58,6 +58,13 @@ func onReady(c Controller, log *slog.Logger) {
 				_ = c.Connect()
 			}
 		}()
+	} else if c.AutoConnect() {
+		// Launched with -connect: bring the tunnel up without a second click.
+		go func() {
+			if err := c.Connect(); err != nil {
+				log.Warn("auto connect", "error", err)
+			}
+		}()
 	}
 
 	go func() {

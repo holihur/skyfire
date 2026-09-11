@@ -38,15 +38,16 @@ func (s Status) String() string {
 
 // App owns the tunnel and the connection string.
 type App struct {
-	mu        sync.Mutex
-	store     *config.Store
-	tun       *tunnel.Tunnel
-	status    Status
-	lastErr   string
-	localConf string
-	dryRun    bool
-	onChange  func(Status, string)
-	log       *slog.Logger
+	mu          sync.Mutex
+	store       *config.Store
+	tun         *tunnel.Tunnel
+	status      Status
+	lastErr     string
+	localConf   string
+	dryRun      bool
+	autoConnect bool
+	onChange    func(Status, string)
+	log         *slog.Logger
 }
 
 // New creates an app backed by the given store.
@@ -92,6 +93,21 @@ func (a *App) ConnectString() string { return a.store.Connect() }
 
 // SetConnectString validates and saves the connection string.
 func (a *App) SetConnectString(v string) error { return a.store.SetConnect(v) }
+
+// SetAutoConnect requests that the tunnel be brought up automatically once the
+// UI is ready (used when the client is launched with -connect).
+func (a *App) SetAutoConnect(v bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.autoConnect = v
+}
+
+// AutoConnect reports whether the tunnel should be brought up automatically.
+func (a *App) AutoConnect() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.autoConnect
+}
 
 // Connect fetches (or reuses) the configuration and brings the tunnel up.
 func (a *App) Connect() error {

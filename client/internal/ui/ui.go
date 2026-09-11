@@ -19,6 +19,7 @@ type Controller interface {
 	Status() (app.Status, string)
 	ConnectString() string
 	SetConnectString(string) error
+	AutoConnect() bool
 	SetOnChange(func(app.Status, string))
 }
 
