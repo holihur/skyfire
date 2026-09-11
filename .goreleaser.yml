@@ -30,7 +30,7 @@ builds:
 
 archives:
   - format: binary
-    name_template: "skyfired-{{ .Os }}-{{ .Arch }}"
+    name_template: '{{ if eq .Os "windows" }}{{ .Binary }}-{{ .Os }}-{{ .Arch }}.exe{{ else }}{{ .Binary }}-{{ .Os }}-{{ .Arch }}{{ end }}'
 
 checksum:
   name_template: "checksums.txt"

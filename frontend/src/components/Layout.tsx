@@ -49,7 +49,11 @@ export default function Layout() {
           <nav className="hidden items-center gap-1 md:flex">
             <NavLink
               to="/"
-              className="rounded-lg px-3 py-1.5 text-sm text-muted-foreground transition hover:text-foreground data-active:bg-accent data-active:text-foreground"
+              className={({ isActive }) =>
+                `rounded-lg px-3 py-1.5 text-sm transition hover:text-foreground${
+                  isActive ? ' bg-accent text-foreground' : ' text-muted-foreground'
+                }`
+              }
             >
               {t('nav.interfaces')}
             </NavLink>

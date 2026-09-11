@@ -6,7 +6,6 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -340,11 +339,10 @@ func decode(r *http.Request, v any) error {
 }
 
 func writeManagerError(w http.ResponseWriter, err error) {
-	msg := err.Error()
 	switch {
-	case strings.Contains(msg, "not found"):
+	case errors.Is(err, manager.ErrNotFound):
 		writeError(w, 404, err)
-	case strings.Contains(msg, "conflict"):
+	case errors.Is(err, manager.ErrConflict):
 		writeError(w, 409, err)
 	default:
 		writeError(w, 400, err)

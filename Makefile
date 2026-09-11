@@ -39,4 +39,4 @@ test:
 clean:
 	rm -f $(BINARY)
 	rm -rf frontend/dist
-	rm -rf $(EMBDIR)/assets
+	rm -rf $(EMBDIR)

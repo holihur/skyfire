@@ -10,6 +10,7 @@ BIN="${1:-/tmp/skyfired.exe}"
 WINE="${WINE:-wine}"
 ADDR="127.0.0.1:51999"
 COOKIE="$(mktemp)"
+trap 'rm -f "$COOKIE"' EXIT
 
 if ! command -v "$WINE" >/dev/null 2>&1; then
   echo "SKIP: $WINE not available"
@@ -24,7 +25,6 @@ fi
 PID=$!
 cleanup() {
   kill "$PID" 2>/dev/null || true
-  "$WINE" server -k 2>/dev/null || true
 }
 trap cleanup EXIT
 
@@ -49,5 +49,13 @@ curl -s -o /dev/null -w "no-cookie=%{http_code}\n" "http://$ADDR/api/interfaces"
 curl -s -b "$COOKIE" -o /dev/null -w "authed=%{http_code}\n" "http://$ADDR/api/interfaces"
 curl -s -b "$COOKIE" -o /dev/null -w "logout=%{http_code}\n" -X POST "http://$ADDR/api/logout"
 curl -s -b "$COOKIE" -o /dev/null -w "after-logout=%{http_code}\n" "http://$ADDR/api/health"
+
+echo "== version check =="
+VER=$(wine "$BIN" --version 2>/dev/null || true)
+if [[ -z "$VER" ]]; then
+  echo "FAIL: --version returned empty"
+  exit 1
+fi
+echo "version=$VER"
 
 echo "OK: windows binary passed smoke test"

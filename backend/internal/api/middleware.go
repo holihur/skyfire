@@ -96,8 +96,16 @@ func (s *Server) createSession(w http.ResponseWriter, r *http.Request) {
 	id := make([]byte, 32)
 	_, _ = rand.Read(id)
 	token := hex.EncodeToString(id)
+	now := time.Now()
 	s.sessionMu.Lock()
-	s.sessions[token] = time.Now().Add(sessionTTL)
+	if len(s.sessions) > 100 {
+		for k, exp := range s.sessions {
+			if now.After(exp) {
+				delete(s.sessions, k)
+			}
+		}
+	}
+	s.sessions[token] = now.Add(sessionTTL)
 	s.sessionMu.Unlock()
 
 	http.SetCookie(w, &http.Cookie{

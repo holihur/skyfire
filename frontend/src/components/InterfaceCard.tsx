@@ -113,7 +113,7 @@ export default function InterfaceCard({ iface, onDeleted, onEdited }: Props) {
             <StatusBadge tone={tone} label={status} />
           </div>
           <div className="mt-1 text-xs text-muted-foreground">
-            {iface.up ? `${iface.listenPort || t('iface.randomPort')} · ${iface.addresses.join(', ')}` : '—'}
+            {iface.up ? `${iface.listenPort || t('iface.randomPort')} · ${(iface.addresses ?? []).join(', ')}` : '—'}
           </div>
         </div>
 

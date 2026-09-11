@@ -438,6 +438,9 @@ func idDst(id stack.TransportEndpointID) (netip.AddrPort, bool) {
 // (traffic to the server's own tunnel address) on loopback.
 func (t *nsTun) dialHost(dst netip.Addr) string {
 	if t.isLocal(dst) {
+		if dst.Is6() {
+			return "::1"
+		}
 		return "127.0.0.1"
 	}
 	return dst.String()

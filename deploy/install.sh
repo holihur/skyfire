@@ -95,6 +95,7 @@ main() {
   cat > /etc/systemd/system/skyfire.service <<EOF
 [Unit]
 Description=Skyfire WireGuard management daemon
+Documentation=https://github.com/holihur/skyfire
 After=network-online.target
 Wants=network-online.target
 

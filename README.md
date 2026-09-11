@@ -3,7 +3,7 @@
 WireGuard 可视化配置管理工具：一个守护进程管理多个 WireGuard 接口与 Peer，
 内置 Web UI（单用户登录），前端被打包进单个二进制。
 
-- **后端**：Go + `wireguard-go`（userspace 驱动，默认）/ `wgctrl`（kernel 驱动）
+- **后端**：Go + gVisor netstack（全用户态驱动，默认）/ `wireguard-go`（userspace 驱动）/ `wgctrl`（kernel 驱动）
 - **前端**：React + Vite + Tailwind + Radix UI
 - **安全**：默认不对系统做任何变更，可用 `-dry-run` 预览所有操作
 
@@ -32,6 +32,8 @@ sudo SKYFIRE_VERSION=v0.1.0 bash -c "$(curl -fsSL https://raw.githubusercontent.
 - Linux：`/usr/local/bin/skyfired`，自动生成 systemd 服务（监听 `:51821`），
   登录密码打印在 `journalctl -u skyfire -n 40`，可用 `-password` 固定
 - Windows：`skyfired.exe`；真实隧道需要 Wintun 驱动，`-demo` 模式无需任何特权
+- Windows (arm64)：无发布产物（goreleaser 跳过该目标）
+- Windows 服务自启：暂不支持，需手动运行 `skyfired.exe`
 - 从源码构建见下方“开发”（需要 Go ≥ 1.26、Node ≥ 20、pnpm）
 
 ## 手动运行
@@ -48,7 +50,7 @@ sudo ./skyfired -config /etc/skyfire/config.json -addr :51821
 | --- | --- | --- |
 | `-config` | `/etc/skyfire/config.json` | 持久化配置文件 |
 | `-addr` | `:51821` | HTTP 监听地址 |
-| `-driver` | `userspace` | `userspace` \| `kernel` \| `mock` |
+| `-driver` | `netstack` | `netstack`（默认，全用户态） \| `userspace` \| `kernel` \| `mock`。升级时若需保持旧行为，显式传 `-driver userspace` |
 | `-dry-run` | `false` | 只打印、不执行任何系统变更（安全预览） |
 | `-token` | 空 | Bearer Token（空则仅用密码登录） |
 | `-username` | `admin` | 登录用户名 |

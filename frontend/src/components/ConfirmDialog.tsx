@@ -31,7 +31,6 @@ export default function ConfirmDialog({
         <>
           <Button
             variant={danger ? 'destructive' : 'default'}
-            autoFocus
             onClick={() => {
               onOpenChange(false)
               onConfirm()
@@ -39,7 +38,7 @@ export default function ConfirmDialog({
           >
             {confirmLabel ?? t('common.confirm')}
           </Button>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" autoFocus onClick={() => onOpenChange(false)}>
             {t('common.cancel')}
           </Button>
         </>

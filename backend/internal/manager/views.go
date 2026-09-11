@@ -30,7 +30,7 @@ type PeerInput struct {
 	PublicKey           string   `json:"publicKey"`
 	GenerateKeys        bool     `json:"generateKeys"`
 	PresharedKey        string   `json:"presharedKey"`
-	WithPreshared       bool     `json:"withPreshared"`
+	WithPreshared       *bool    `json:"withPreshared,omitempty"`
 	AllowedIPs          []string `json:"allowedIPs"`
 	ClientRoutes        []string `json:"clientRoutes"`
 	DNS                 []string `json:"dns"`

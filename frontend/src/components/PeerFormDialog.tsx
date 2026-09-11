@@ -54,6 +54,10 @@ export default function PeerFormDialog({ open, onOpenChange, onDone, ifaceName, 
   }, [open, peer])
 
   const submit = async () => {
+    if (!name.trim()) {
+      toast({ description: t('peer.nameRequired'), variant: 'destructive' })
+      return
+    }
     setBusy(true)
     const input = {
       name,
@@ -66,7 +70,7 @@ export default function PeerFormDialog({ open, onOpenChange, onDone, ifaceName, 
       clientRoutes: parseList(clientRoutes),
       dns: parseList(dns),
       endpoint: endpoint.trim(),
-      persistentKeepalive: Number(keepalive) || 0,
+      persistentKeepalive: Math.max(0, Number(keepalive) || 0),
       description: description.trim(),
       enabled,
     }

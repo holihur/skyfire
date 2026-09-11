@@ -60,7 +60,8 @@ jobs:
       - name: Cross-compile (compile check for every GOOS/GOARCH)
         run: |
           cd backend
-          for target in "windows/amd64" "windows/arm64" "darwin/amd64" "darwin/arm64" "linux/amd64" "linux/arm64"; do
+          # windows/arm64 excluded: goreleaser ignore aligns with no release artifact (Issue #10)
+          for target in "windows/amd64" "darwin/amd64" "darwin/arm64" "linux/amd64" "linux/arm64"; do
             os="${target%/*}"; arch="${target#*/}"
             echo "building $os/$arch"
             GOOS=$os GOARCH=$arch CGO_ENABLED=0 go build -o /tmp/build-ok ./cmd/skyfired

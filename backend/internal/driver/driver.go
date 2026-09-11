@@ -8,8 +8,8 @@ import "time"
 
 // Config is the desired wireguard device configuration.
 type Config struct {
-	PrivateKey string     `json:"privateKey"`
-	ListenPort int        `json:"listenPort"`
+	PrivateKey string `json:"privateKey"`
+	ListenPort int    `json:"listenPort"`
 	// FirewallMark, when > 0, tags the device's own packets (endpoint UDP
 	// traffic) so the full-tunnel policy routing rules can exclude them and
 	// avoid a routing loop. Required alongside AddDefaultRoutes.

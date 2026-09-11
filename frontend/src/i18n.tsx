@@ -21,6 +21,7 @@ const en = {
   'login.signin': 'Sign in',
   'login.signingIn': 'Signing in…',
   'login.invalid': 'Invalid username or password',
+  'login.unreachable': 'Cannot reach the Skyfire daemon',
 
   'dashboard.title': 'Interfaces',
   'dashboard.subtitle': 'Manage your WireGuard tunnels and their peers.',
@@ -117,6 +118,7 @@ const en = {
   'peer.created': 'Peer created',
   'peer.editDesc': 'Updates are applied to the live interface immediately.',
   'peer.addDesc': 'A client keypair is generated automatically. Leave the address empty to auto-assign from the subnet.',
+  'peer.nameRequired': 'Name is required',
 
   'ifaceForm.new': 'New interface',
   'ifaceForm.editTitle': 'Edit {name}',
@@ -131,6 +133,9 @@ const en = {
   'ifaceForm.create': 'Create interface',
   'ifaceForm.editDesc': 'Changes are applied to the live interface immediately.',
   'ifaceForm.createDesc': 'WireGuard keys are generated automatically. The first address is the server address.',
+  'ifaceForm.nameRequired': 'Interface name is required',
+  'ifaceForm.addressesRequired': 'At least one address is required',
+  'ifaceForm.mtuInvalid': 'Invalid MTU: enter a value greater than 0',
 
   'common.cancel': 'Cancel',
   'common.confirm': 'Confirm',
@@ -153,6 +158,8 @@ const en = {
   'peerDetail.info': 'Info',
   'peerDetail.qrHint': 'Scan with the WireGuard mobile app (import from QR code).',
   'peerDetail.loading': 'Loading…',
+  'peerDetail.loadFailed': 'Failed to load the configuration',
+  'peerDetail.retry': 'Retry',
   'peerDetail.edit': 'Edit',
   'peerDetail.removeBtn': 'Remove peer',
   'peerDetail.removeBody':
@@ -202,6 +209,7 @@ const zh: Record<string, string> = {
   'login.signin': '登录',
   'login.signingIn': '登录中…',
   'login.invalid': '用户名或密码错误',
+  'login.unreachable': '无法连接守护进程',
 
   'dashboard.title': '接口',
   'dashboard.subtitle': '管理你的 WireGuard 隧道和对端。',
@@ -298,6 +306,7 @@ const zh: Record<string, string> = {
   'peer.created': '对端已创建',
   'peer.editDesc': '修改将立即应用到线上接口。',
   'peer.addDesc': '自动生成客户端密钥对。地址留空将从子网自动分配。',
+  'peer.nameRequired': '名称不能为空',
 
   'ifaceForm.new': '新建接口',
   'ifaceForm.editTitle': '编辑 {name}',
@@ -312,6 +321,9 @@ const zh: Record<string, string> = {
   'ifaceForm.create': '创建接口',
   'ifaceForm.editDesc': '修改将立即应用到线上接口。',
   'ifaceForm.createDesc': '自动生成 WireGuard 密钥。第一个地址为服务端地址。',
+  'ifaceForm.nameRequired': '接口名称不能为空',
+  'ifaceForm.addressesRequired': '至少填写一个地址',
+  'ifaceForm.mtuInvalid': 'MTU 无效：请输入大于 0 的数值',
 
   'common.cancel': '取消',
   'common.confirm': '确认',
@@ -334,6 +346,8 @@ const zh: Record<string, string> = {
   'peerDetail.info': '信息',
   'peerDetail.qrHint': '使用 WireGuard 手机 App 扫描（从二维码导入）。',
   'peerDetail.loading': '加载中…',
+  'peerDetail.loadFailed': '配置加载失败',
+  'peerDetail.retry': '重试',
   'peerDetail.edit': '编辑',
   'peerDetail.removeBtn': '移除对端',
   'peerDetail.removeBody': '移除 {name}？其客户端配置将失效。',

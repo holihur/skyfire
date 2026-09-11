@@ -87,7 +87,7 @@ func (m *Manager) applyInterface(iface *store.Interface) error {
 	}
 	v4, v6 := defaultRouteFamilies(allowedIPs(iface))
 	osStack := m.driver.UsesOSStack()
-	if osStack && iface.MTU > 0 {
+	if iface.MTU > 0 {
 		if err := m.driver.SetMTU(iface.Name, iface.MTU); err != nil {
 			m.log.Warn("set mtu", "iface", iface.Name, "error", err)
 		}
@@ -308,7 +308,14 @@ func (m *Manager) DeleteInterface(name string) error {
 		return err
 	}
 	if !m.dryRun {
-		driver.RemoveRoutes(iface.Name, allowedIPs(iface))
+		if m.driver.UsesOSStack() {
+			aips := allowedIPs(iface)
+			v4, v6 := defaultRouteFamilies(aips)
+			driver.RemoveRoutes(iface.Name, aips)
+			if v4 || v6 {
+				driver.RemoveDefaultRoutes(iface.Name, v4, v6)
+			}
+		}
 		if err := m.driver.Remove(iface.Name); err != nil {
 			m.log.Warn("driver remove failed", "iface", iface.Name, "error", err)
 		}
@@ -330,13 +337,16 @@ func (m *Manager) SetInterfaceUp(name string, up bool) (*InterfaceView, error) {
 	if err != nil {
 		return nil, err
 	}
+	oldUp := iface.Up
 	iface.Up = up
 	iface.UpdatedAt = time.Now()
 	if err := m.persist(); err != nil {
 		return nil, err
 	}
 	if err := m.applyInterface(iface); err != nil {
-		iface.Up = !up
+		iface.Up = oldUp
+		iface.UpdatedAt = time.Now()
+		_ = m.persist()
 		return nil, fmt.Errorf("%w (configuration was saved, state reverted in memory)", err)
 	}
 	return m.interfaceViewLocked(iface)
@@ -388,7 +398,7 @@ func (m *Manager) CreatePeer(ifaceName string, in *PeerInput) (*PeerView, error)
 		}
 		peer.PublicKey = pk.String()
 	}
-	if in.PresharedKey == "" && in.WithPreshared {
+	if in.PresharedKey == "" && in.WithPreshared != nil && *in.WithPreshared {
 		psk, err := genPreshared()
 		if err != nil {
 			return nil, err
@@ -408,6 +418,9 @@ func (m *Manager) CreatePeer(ifaceName string, in *PeerInput) (*PeerView, error)
 	}
 	if len(peer.AllowedIPs) == 0 {
 		peer.AllowedIPs = []string{clientAddressCIDR(peer.Address)}
+	}
+	if err := duplicateAddressLocked(iface, peer.Address, nil); err != nil {
+		return nil, err
 	}
 	for _, existing := range iface.Peers {
 		if existing.PublicKey == peer.PublicKey {
@@ -464,21 +477,27 @@ func (m *Manager) UpdatePeer(ifaceName, publicKey string, in *PeerInput) (*PeerV
 		target.Name = "peer"
 	}
 	target.Address = strings.TrimSpace(in.Address)
+	if err := duplicateAddressLocked(iface, target.Address, target); err != nil {
+		return nil, err
+	}
 	target.Endpoint = strings.TrimSpace(in.Endpoint)
-	target.PresharedKey = ""
-	if in.WithPreshared {
-		if in.PresharedKey != "" {
-			target.PresharedKey = in.PresharedKey
-		} else {
-			psk, err := genPreshared()
-			if err != nil {
-				return nil, err
+	if in.WithPreshared != nil {
+		if *in.WithPreshared {
+			if in.PresharedKey != "" {
+				target.PresharedKey = in.PresharedKey
+			} else {
+				psk, err := genPreshared()
+				if err != nil {
+					return nil, err
+				}
+				target.PresharedKey = psk
 			}
-			target.PresharedKey = psk
+		} else {
+			target.PresharedKey = ""
 		}
 	}
 	target.PersistentKeepalive = in.PersistentKeepalive
-	if !m.dryRun && !equalStrings(target.AllowedIPs, in.AllowedIPs) {
+	if !m.dryRun && m.driver.UsesOSStack() && !equalStrings(target.AllowedIPs, in.AllowedIPs) {
 		driver.RemoveRoutes(iface.Name, target.AllowedIPs)
 		if v4, v6 := defaultRouteFamilies(target.AllowedIPs); v4 || v6 {
 			driver.RemoveDefaultRoutes(iface.Name, v4, v6)
@@ -514,7 +533,7 @@ func (m *Manager) DeletePeer(ifaceName, publicKey string) error {
 	found := false
 	for i, p := range iface.Peers {
 		if p.PublicKey == publicKey {
-			if !m.dryRun {
+			if !m.dryRun && m.driver.UsesOSStack() {
 				driver.RemoveRoutes(iface.Name, p.AllowedIPs)
 				if v4, v6 := defaultRouteFamilies(p.AllowedIPs); v4 || v6 {
 					driver.RemoveDefaultRoutes(iface.Name, v4, v6)
@@ -738,6 +757,31 @@ func validateAddresses(addrs []string) error {
 	for _, a := range addrs {
 		if _, err := netip.ParsePrefix(a); err != nil {
 			return fmt.Errorf("invalid address %q: %w", a, err)
+		}
+	}
+	return nil
+}
+
+// duplicateAddressLocked reports whether addr (bare host or CIDR) collides
+// with the interface's own addresses or another peer's tunnel address.
+// skip, if non-nil, is excluded from the check (used by UpdatePeer to ignore
+// the peer being updated). An empty addr is never a duplicate.
+func duplicateAddressLocked(iface *store.Interface, addr string, skip *store.Peer) error {
+	if addr == "" {
+		return nil
+	}
+	h := hostOf(addr)
+	for _, a := range iface.Addresses {
+		if hostOf(a) == h {
+			return fmt.Errorf("%w: address %s already in use by interface %s", ErrConflict, h, iface.Name)
+		}
+	}
+	for _, p := range iface.Peers {
+		if p == skip || p.Address == "" {
+			continue
+		}
+		if hostOf(p.Address) == h {
+			return fmt.Errorf("%w: address %s already in use", ErrConflict, h)
 		}
 	}
 	return nil

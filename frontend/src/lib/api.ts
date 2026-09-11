@@ -35,6 +35,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   } catch {
     throw new ApiError(0, 'Cannot reach the Skyfire daemon')
   }
+  if (res.status === 401) window.dispatchEvent(new Event('skyfire:unauthorized'))
   if (res.status === 204) return undefined as T
   const ct = res.headers.get('content-type') ?? ''
   if (!res.ok) {

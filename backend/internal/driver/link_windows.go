@@ -65,7 +65,10 @@ func setLinkMTU(dev string, mtu int) error {
 	if mtu <= 0 {
 		return nil
 	}
-	return netsh("interface", "ipv4", "set", "subinterface", dev, fmt.Sprintf("mtu=%d", mtu))
+	if err := netsh("interface", "ipv4", "set", "subinterface", dev, fmt.Sprintf("mtu=%d", mtu)); err != nil {
+		return err
+	}
+	return netsh("interface", "ipv6", "set", "subinterface", dev, fmt.Sprintf("mtu=%d", mtu))
 }
 
 func setLinkUp(dev string) error {

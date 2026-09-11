@@ -13,7 +13,7 @@ export default function App() {
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <span className="text-sm text-faint">{t('iface.loading')}</span>
+        <span className="text-sm text-muted-foreground">{t('iface.loading')}</span>
       </div>
     )
   }

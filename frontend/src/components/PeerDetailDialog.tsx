@@ -23,21 +23,27 @@ export default function PeerDetailDialog({ open, onOpenChange, ifaceName, peer, 
   const { t, lang } = useI18n()
   const [tab, setTab] = useState('qr')
   const [config, setConfig] = useState('')
+  const [configError, setConfigError] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
-  const loadConfig = async () => {
+  const loadConfig = async (): Promise<string> => {
     try {
       const cfg = await api.getText(api.peerConfigUrl(ifaceName, peer.publicKey))
       setConfig(cfg)
+      setConfigError(false)
+      return cfg
     } catch (err) {
+      setConfigError(true)
       toast({ description: String(err), variant: 'destructive' })
+      return ''
     }
   }
 
   const copyConfig = async () => {
-    if (!config) await loadConfig()
+    const text = config || await loadConfig()
+    if (!text) return
     try {
-      await navigator.clipboard.writeText(config)
+      await navigator.clipboard.writeText(text)
       toast({ description: t('peerDetail.confCopied'), variant: 'success' })
     } catch {
       toast({ description: t('common.clipboardUnavailable'), variant: 'destructive' })
@@ -117,9 +123,18 @@ export default function PeerDetailDialog({ open, onOpenChange, ifaceName, peer, 
         </TabsContent>
 
         <TabsContent value="conf">
-          <pre className="mono max-h-80 overflow-auto rounded-xl border bg-secondary p-4">
-            {config || t('peerDetail.loading')}
-          </pre>
+          {configError ? (
+            <div className="flex flex-col items-center gap-3 py-8 text-center">
+              <p className="text-sm text-muted-foreground">{t('peerDetail.loadFailed')}</p>
+              <Button variant="outline" size="sm" onClick={() => void loadConfig()}>
+                {t('peerDetail.retry')}
+              </Button>
+            </div>
+          ) : (
+            <pre className="mono max-h-80 overflow-auto rounded-xl border bg-secondary p-4">
+              {config || t('peerDetail.loading')}
+            </pre>
+          )}
         </TabsContent>
 
         <TabsContent value="info">

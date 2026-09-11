@@ -43,13 +43,28 @@ export default function InterfaceFormDialog({ open, onOpenChange, onDone, existi
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!name.trim()) {
+      toast({ description: t('ifaceForm.nameRequired'), variant: 'destructive' })
+      return
+    }
+    const addressList = parseList(addresses)
+    if (addressList.length === 0) {
+      toast({ description: t('ifaceForm.addressesRequired'), variant: 'destructive' })
+      return
+    }
+    const mtuStr = mtu.trim()
+    if (mtuStr === '' || Number(mtuStr) === 0) {
+      toast({ description: t('ifaceForm.mtuInvalid'), variant: 'destructive' })
+      return
+    }
+    const mtuNum = Number(mtuStr)
     setBusy(true)
     try {
       const body = {
         name,
         listenPort: Number(listenPort) || 0,
-        addresses: parseList(addresses),
-        mtu: Number(mtu) || 1420,
+        addresses: addressList,
+        mtu: Number.isFinite(mtuNum) && mtuNum > 0 ? mtuNum : 1420,
         dns: parseList(dns),
         up,
       }

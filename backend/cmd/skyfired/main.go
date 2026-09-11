@@ -59,7 +59,7 @@ func main() {
 	if *demo {
 		*dryRun = true
 		*driverName = "mock"
-		*configPath = "/tmp/skyfire-demo.json"
+		*configPath = filepath.Join(os.TempDir(), "skyfire-demo.json")
 		if *token == "" {
 			*token = "demo"
 		}
@@ -198,11 +198,12 @@ func seedDemo(mgr *manager.Manager, log *slog.Logger) {
 		{"phone", "10.42.0.3"},
 	}
 	for _, p := range peers {
+		wp := true
 		in := manager.PeerInput{
 			Name:                p.name,
 			Address:             p.addr,
 			GenerateKeys:        true,
-			WithPreshared:       true,
+			WithPreshared:       &wp,
 			ClientRoutes:        []string{"0.0.0.0/0", "::/0"},
 			PersistentKeepalive: 25,
 			Enabled:             true,

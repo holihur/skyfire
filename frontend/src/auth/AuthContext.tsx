@@ -1,17 +1,22 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { api, isUnauthorized } from '../lib/api'
 
+interface LoginResult {
+  ok: boolean
+  networkError: boolean
+}
+
 interface AuthState {
   authed: boolean
   loading: boolean
-  login: (username: string, password: string, remember?: boolean) => Promise<boolean>
+  login: (username: string, password: string, remember?: boolean) => Promise<LoginResult>
   logout: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthState>({
   authed: false,
   loading: true,
-  login: async () => false,
+  login: async () => ({ ok: false, networkError: false }),
   logout: async () => {},
 })
 
@@ -39,13 +44,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     void verify()
   }, [verify])
 
-  const login = useCallback(async (username: string, password: string) => {
+  useEffect(() => {
+    const onUnauthorized = () => setAuthed(false)
+    window.addEventListener('skyfire:unauthorized', onUnauthorized)
+    return () => window.removeEventListener('skyfire:unauthorized', onUnauthorized)
+  }, [])
+
+  const login = useCallback(async (username: string, password: string): Promise<LoginResult> => {
     try {
-      await api.login(username, password)
-      setAuthed(true)
-      return true
-    } catch {
-      return false
+      const res = await api.login(username, password)
+      if (res?.ok) {
+        setAuthed(true)
+        return { ok: true, networkError: false }
+      }
+      // 200 without ok:true (e.g. empty response): the daemon is not answering properly
+      return { ok: false, networkError: true }
+    } catch (err) {
+      // only 401 means bad credentials; anything else is a network/daemon failure
+      return { ok: false, networkError: !isUnauthorized(err) }
     }
   }, [])
 

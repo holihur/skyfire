@@ -18,9 +18,11 @@ export default function Login() {
     e.preventDefault()
     setBusy(true)
     setError('')
-    const ok = await login(username.trim(), password)
+    const result = await login(username.trim(), password)
     setBusy(false)
-    if (!ok) setError(t('login.invalid'))
+    if (!result.ok) {
+      setError(result.networkError ? t('login.unreachable') : t('login.invalid'))
+    }
   }
 
   return (

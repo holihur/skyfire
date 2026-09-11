@@ -174,7 +174,7 @@ export default function InterfaceDetail() {
             </div>
             <dl className="mt-3 grid grid-cols-2 gap-x-8 gap-y-2 text-sm sm:grid-cols-3 lg:grid-cols-4">
               <KV k={t('iface.listenPort')} v={iface.listenPort ? String(iface.listenPort) : t('iface.randomPort')} />
-              <KV k={t('iface.addresses')} v={iface.addresses.join(', ')} mono />
+              <KV k={t('iface.addresses')} v={(iface.addresses ?? []).join(', ')} mono />
               <KV k="MTU" v={String(iface.mtu)} />
               <KV k={t('iface.stat.peers')} v={t('iface.peersCount', { conn: iface.connectedPeers, total: iface.totalPeers })} />
             </dl>
@@ -229,7 +229,7 @@ export default function InterfaceDetail() {
         <div className="mb-4 flex items-center justify-between gap-3">
           <TabsList>
             <TabsTrigger value="peers">
-              {t('iface.stat.peers')} ({iface.peers.length})
+              {t('iface.stat.peers')} ({(iface.peers ?? []).length})
             </TabsTrigger>
             <TabsTrigger value="conf">{t('iface.srvConf')}</TabsTrigger>
           </TabsList>
@@ -239,7 +239,7 @@ export default function InterfaceDetail() {
         </div>
 
         <TabsContent value="peers">
-          {iface.peers.length === 0 ? (
+          {(iface.peers ?? []).length === 0 ? (
             <Card className="flex flex-col items-center gap-3 py-16 text-center">
               <span className="text-3xl">👥</span>
               <p className="text-muted-foreground">{t('iface.peer.noPeers')}</p>
@@ -262,7 +262,7 @@ export default function InterfaceDetail() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {iface.peers.map((p) => (
+                  {(iface.peers ?? []).map((p) => (
                     <TableRow key={p.publicKey}>
                       <TableCell>
                         <button
@@ -272,7 +272,7 @@ export default function InterfaceDetail() {
                           {p.name}
                         </button>
                         <div className="text-xs text-muted-foreground/70">
-                          {p.endpoint || p.presharedKey ? 'psk·on' : ''}
+                          {p.presharedKey ? 'psk·on' : ''}
                           {p.endpoint ? ` · ${p.endpoint}` : ''}
                         </div>
                       </TableCell>
@@ -344,10 +344,7 @@ export default function InterfaceDetail() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  navigator.clipboard.writeText(serverConf)
-                  toast({ description: t('iface.copySrvConf'), variant: 'success' })
-                }}
+                onClick={() => void copy(serverConf, t('iface.srvConf'))}
               >
                 <Copy /> {t('iface.conf.copy')}
               </Button>
