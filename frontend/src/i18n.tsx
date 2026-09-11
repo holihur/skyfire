@@ -158,6 +158,12 @@ const en = {
   'settings.publicEndpointPh': 'vpn.example.com:51820',
   'settings.publicEndpointHelp':
     'Host and port clients should connect to. If the port is omitted the interface\'s listen port is appended automatically.',
+  'settings.section.general': 'General',
+  'settings.section.appearance': 'Appearance',
+  'settings.theme': 'Theme',
+  'settings.themeLight': 'Light',
+  'settings.themeDark': 'Dark',
+  'settings.language': 'Language',
 
   'peerDetail.qr': 'QR code',
   'peerDetail.conf': 'Configuration',
@@ -363,6 +369,12 @@ const zh: Record<string, string> = {
   'settings.publicEndpointPh': 'vpn.example.com:51820',
   'settings.publicEndpointHelp':
     '客户端应连接的主机和端口。若省略端口，将自动附加接口的监听端口。',
+  'settings.section.general': '通用',
+  'settings.section.appearance': '外观',
+  'settings.theme': '主题',
+  'settings.themeLight': '浅色',
+  'settings.themeDark': '深色',
+  'settings.language': '语言',
 
   'peerDetail.qr': '二维码',
   'peerDetail.conf': '配置',
