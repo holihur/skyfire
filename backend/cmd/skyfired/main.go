@@ -140,6 +140,7 @@ func main() {
 		Token:     *token,
 		Username:  *username,
 		Password:  *password,
+		Version:   version,
 		Log:       log,
 	})
 	if *static == "" {
@@ -153,6 +154,7 @@ func main() {
 			Token:    *token,
 			Username: *username,
 			Password: *password,
+			Version:  version,
 			Log:      log,
 		})
 	}

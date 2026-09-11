@@ -83,7 +83,7 @@ func TestBearerToken(t *testing.T) {
 }
 
 func TestHealthReportsDriver(t *testing.T) {
-	s := mustServer(t, Options{Token: "x"})
+	s := mustServer(t, Options{Token: "x", Version: "v9.9.9-test"})
 	req := httptest.NewRequest("GET", "/api/health", nil)
 	req.Header.Set("Authorization", "Bearer x")
 	w := httptest.NewRecorder()
@@ -93,5 +93,8 @@ func TestHealthReportsDriver(t *testing.T) {
 	}
 	if !strings.Contains(w.Body.String(), "mock") {
 		t.Fatalf("health body should mention driver, got %q", w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "v9.9.9-test") {
+		t.Fatalf("health body should mention version, got %q", w.Body.String())
 	}
 }

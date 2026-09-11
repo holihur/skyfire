@@ -20,6 +20,7 @@ type Server struct {
 	mgr      *manager.Manager
 	drv      driver.Driver
 	dryRun   bool
+	version  string
 	static   string
 	staticFS fs.FS
 	token    string
@@ -43,7 +44,9 @@ type Options struct {
 	// Username/Password enable single-user password login (cookie session).
 	Username string
 	Password string
-	Log      *slog.Logger
+	// Version is the daemon version reported by /api/health.
+	Version string
+	Log     *slog.Logger
 }
 
 // New builds the HTTP handler.
@@ -56,6 +59,7 @@ func New(mgr *manager.Manager, drv driver.Driver, dryRun bool, opts Options) *Se
 		mgr:      mgr,
 		drv:      drv,
 		dryRun:   dryRun,
+		version:  opts.Version,
 		static:   opts.StaticDir,
 		staticFS: opts.StaticFS,
 		token:    opts.Token,
@@ -142,9 +146,10 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, 200, map[string]any{
-		"status": "ok",
-		"driver": s.drv.Name(),
-		"dryRun": s.dryRun,
+		"status":  "ok",
+		"driver":  s.drv.Name(),
+		"dryRun":  s.dryRun,
+		"version": s.version,
 	})
 }
 
