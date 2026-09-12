@@ -1,5 +1,6 @@
 # Go
 /skyfired
+/skyfire-client*
 backend/skyfired
 backend/skyfired.exe
 backend/*.test
