@@ -49,6 +49,9 @@ func configureLink(dev string, c *Conf) error {
 // unconfigureLink removes the endpoint-exception host routes; the interface
 // scoped routes disappear with the utun device.
 func unconfigureLink(_ string, c *Conf) {
+	if c == nil || c.WhitelistMode() {
+		return
+	}
 	removeEndpointExceptions(c)
 }
 
@@ -110,6 +113,11 @@ func addAddresses(dev string, addresses []string) error {
 }
 
 func addRoutes(dev string, c *Conf) error {
+	// Split-by-domain mode: routes are maintained by the whitelist router
+	// instead of the peer's AllowedIPs.
+	if c.WhitelistMode() {
+		return nil
+	}
 	// Pin each endpoint to the physical path BEFORE installing the full-tunnel
 	// /1 routes; otherwise those routes capture the tunnel's own transport and
 	// create a routing loop that cuts the machine off.

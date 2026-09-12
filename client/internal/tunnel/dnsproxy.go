@@ -89,7 +89,11 @@ func (p *dnsProxy) udpLoop() {
 		}
 		pkt := make([]byte, n)
 		copy(pkt, buf[:n])
-		go p.handleUDP(addr, pkt)
+		p.wg.Add(1)
+		go func() {
+			defer p.wg.Done()
+			p.handleUDP(addr, pkt)
+		}()
 	}
 }
 
@@ -128,7 +132,11 @@ func (p *dnsProxy) tcpLoop() {
 		if err != nil {
 			return
 		}
-		go p.handleTCP(conn)
+		p.wg.Add(1)
+		go func() {
+			defer p.wg.Done()
+			p.handleTCP(conn)
+		}()
 	}
 }
 

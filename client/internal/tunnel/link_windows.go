@@ -295,7 +295,7 @@ func delTunnelPrefix(dev string, pre netip.Prefix) {
 // for the split-DNS proxy before the system resolver is pointed at it.
 func currentDNSServers() []string {
 	out, err := exec.Command("powershell", "-NoProfile", "-Command",
-		"(Get-DnsClientServerAddress -AddressFamily IPv4,IPv6 | Where-Object { $_.ServerAddresses } | Select-Object -ExpandProperty ServerAddresses)").Output()
+		"(Get-DnsClientServerAddress | Where-Object { $_.ServerAddresses } | Select-Object -ExpandProperty ServerAddresses)").Output()
 	if err != nil {
 		return nil
 	}

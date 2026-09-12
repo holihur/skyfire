@@ -95,6 +95,7 @@ type whitelistRouter struct {
 
 	tunnelRes   *net.Resolver
 	upstreamRes *net.Resolver
+	upstream    string
 	proxy       *dnsProxy
 
 	mu           sync.Mutex
@@ -118,8 +119,9 @@ func newWhitelistRouter(dev string, c *Conf, log *slog.Logger) *whitelistRouter 
 		seen:         make(map[string]struct{}),
 	}
 	r.tunnelRes = resolverFor(c.DNS)
-	if upstream := upstreamServer(); upstream != "" {
-		r.upstreamRes = resolverFor([]string{upstream})
+	r.upstream = upstreamServer()
+	if r.upstream != "" {
+		r.upstreamRes = resolverFor([]string{r.upstream})
 	}
 	return r
 }
@@ -128,6 +130,9 @@ func newWhitelistRouter(dev string, c *Conf, log *slog.Logger) *whitelistRouter 
 // proxy and points the system resolver at it. A proxy failure degrades to
 // CIDR + exact-hostname routing only (wildcards stop working) and is logged.
 func (r *whitelistRouter) start() {
+	// Route the tunnel DNS servers first so domain resolution can reach them
+	// through the tunnel.
+	r.addHostRoutes(r.dnsIPs())
 	for _, pre := range r.prefixRules() {
 		if err := addTunnelPrefix(r.dev, pre); err != nil {
 			r.log.Warn("add CIDR route", "prefix", pre.String(), "error", err)
@@ -140,7 +145,7 @@ func (r *whitelistRouter) start() {
 	}
 
 	if r.hasDomainRules() {
-		upstream := net.JoinHostPort(upstreamServer(), "53")
+		upstream := net.JoinHostPort(r.upstream, "53")
 		r.proxy = newDNSProxy(upstream, r.matchDomain, func(name string) ([]netip.Addr, error) {
 			return r.resolveAndRoute(name), nil
 		}, r.log)
@@ -383,7 +388,7 @@ func resolverFor(dns []string) *net.Resolver {
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
 			d := net.Dialer{Timeout: 5 * time.Second}
-			return d.DialContext(ctx, "udp", server)
+			return d.DialContext(ctx, network, server)
 		},
 	}
 }

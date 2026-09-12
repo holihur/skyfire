@@ -13,6 +13,7 @@ WireGuard 可视化配置管理工具：一个守护进程管理多个 WireGuard
 - 按 Peer 限速（下载/上传，单位 bit/s，0 不限速；Linux 用 tc，netstack 在进程内限速）
 - 客户端配置下载（.conf 文本）+ 二维码图片
 - 桌面客户端（单文件 + 系统托盘）凭 Peer 令牌一键连接
+- 客户端按域名 / CIDR 白名单分流（支持 `*.example.com` 通配符，白名单走隧道、其余直连）
 - 实时状态：连接状态、最后一次握手、收发流量
 - 服务器内置 DNS 转发（客户端默认经隧道使用干净解析）+ 全局流量转发开关
 - 单用户密码登录（Session Cookie）+ 可选 Bearer Token
@@ -88,10 +89,13 @@ skyfire-client -dry-run
 
 # 无托盘环境用终端模式；也可用本地 .conf 而不从服务端拉取
 skyfire-client -cli -conf ./peer.conf
+
+# 域名/CIDR 白名单：仅这些目标走隧道（支持 *.example.com 通配符）
+skyfire-client -whitelist 'api.example.com,*.corp.example,10.0.0.0/8'
 ```
 
-托盘菜单：连接/断开、设置连接字符串、退出；图标颜色表示状态（绿=已连接）。
-连接字符串也可只保存不用：不带 `-connect` 启动后由托盘菜单设置。
+托盘菜单：连接/断开、设置连接字符串、**设置域名白名单**、退出；图标颜色表示
+状态（绿=已连接）。连接字符串也可只保存不用：不带 `-connect` 启动后由托盘菜单设置。
 
 ### 权限与路由说明
 
