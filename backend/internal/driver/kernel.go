@@ -114,6 +114,14 @@ func (k *Kernel) Remove(name string) error {
 	return delWGLink(name)
 }
 
+func (k *Kernel) ApplyShaping(name string, peers []PeerShaping) error {
+	return applyTCShaping(name, peers)
+}
+
+func (k *Kernel) RemoveShaping(name string) {
+	removeTCShaping(name)
+}
+
 func (k *Kernel) Status(name string) (DeviceStatus, error) {
 	dev, err := k.client.Device(name)
 	if err != nil {

@@ -121,13 +121,57 @@ func (m *Manager) applyInterface(iface *store.Interface) error {
 				}
 			}
 		}
+		if err := m.applyShaping(iface); err != nil {
+			m.log.Warn("apply rate limits", "iface", iface.Name, "error", err)
+		}
 		return nil
 	}
+	m.driver.RemoveShaping(iface.Name)
 	if osStack {
 		driver.RemoveRoutes(iface.Name, allowedIPs(iface))
 		driver.RemoveDefaultRoutes(iface.Name, v4, v6)
 	}
 	return m.driver.Down(iface.Name)
+}
+
+// applyShaping installs per-peer rate limits on an interface. A missing or
+// unsupported shaping backend is only a warning: the limits remain stored.
+func (m *Manager) applyShaping(iface *store.Interface) error {
+	specs := shapingSpecs(iface)
+	if len(specs) == 0 {
+		m.driver.RemoveShaping(iface.Name)
+		return nil
+	}
+	if err := m.driver.ApplyShaping(iface.Name, specs); err != nil {
+		if errors.Is(err, driver.ErrShapingUnsupported) {
+			m.log.Warn("rate limits configured but not enforced by this driver",
+				"iface", iface.Name, "driver", m.driver.Name())
+			return nil
+		}
+		return err
+	}
+	return nil
+}
+
+// shapingSpecs collects the rate-limited peers of an interface, matching the
+// peer's server-side AllowedIPs (defaulting to its tunnel address).
+func shapingSpecs(iface *store.Interface) []driver.PeerShaping {
+	var out []driver.PeerShaping
+	for _, p := range iface.Peers {
+		if !p.Enabled || (p.DownloadLimit <= 0 && p.UploadLimit <= 0) {
+			continue
+		}
+		prefixes := p.AllowedIPs
+		if len(prefixes) == 0 && p.Address != "" {
+			prefixes = []string{clientAddressCIDR(p.Address)}
+		}
+		out = append(out, driver.PeerShaping{
+			Prefixes:      prefixes,
+			DownloadLimit: p.DownloadLimit,
+			UploadLimit:   p.UploadLimit,
+		})
+	}
+	return out
 }
 
 // allowedIPs unions the AllowedIPs of all enabled peers; disabled peers must
@@ -324,6 +368,7 @@ func (m *Manager) DeleteInterface(name string) error {
 				driver.RemoveDefaultRoutes(iface.Name, v4, v6)
 			}
 		}
+		m.driver.RemoveShaping(iface.Name)
 		if err := m.driver.Remove(iface.Name); err != nil {
 			m.log.Warn("driver remove failed", "iface", iface.Name, "error", err)
 		}
@@ -375,6 +420,9 @@ func (m *Manager) CreatePeer(ifaceName string, in *PeerInput) (*PeerView, error)
 	if err := validatePresharedKey(in.PresharedKey); err != nil {
 		return nil, err
 	}
+	if err := validateLimits(in.DownloadLimit, in.UploadLimit); err != nil {
+		return nil, err
+	}
 
 	peer := &store.Peer{
 		Name:                strings.TrimSpace(in.Name),
@@ -382,6 +430,8 @@ func (m *Manager) CreatePeer(ifaceName string, in *PeerInput) (*PeerView, error)
 		Endpoint:            strings.TrimSpace(in.Endpoint),
 		PresharedKey:        in.PresharedKey,
 		PersistentKeepalive: in.PersistentKeepalive,
+		DownloadLimit:       in.DownloadLimit,
+		UploadLimit:         in.UploadLimit,
 		Description:         in.Description,
 		ClientRoutes:        in.ClientRoutes,
 		DNS:                 in.DNS,
@@ -460,6 +510,9 @@ func (m *Manager) UpdatePeer(ifaceName, publicKey string, in *PeerInput) (*PeerV
 	if err := validatePresharedKey(in.PresharedKey); err != nil {
 		return nil, err
 	}
+	if err := validateLimits(in.DownloadLimit, in.UploadLimit); err != nil {
+		return nil, err
+	}
 	target, err := findPeerLocked(iface, publicKey)
 	if err != nil {
 		return nil, err
@@ -508,6 +561,8 @@ func (m *Manager) UpdatePeer(ifaceName, publicKey string, in *PeerInput) (*PeerV
 		}
 	}
 	target.PersistentKeepalive = in.PersistentKeepalive
+	target.DownloadLimit = in.DownloadLimit
+	target.UploadLimit = in.UploadLimit
 	if !m.dryRun && m.driver.UsesOSStack() && !equalStrings(target.AllowedIPs, in.AllowedIPs) {
 		driver.RemoveRoutes(iface.Name, target.AllowedIPs)
 		if v4, v6 := defaultRouteFamilies(target.AllowedIPs); v4 || v6 {
@@ -664,6 +719,8 @@ func (m *Manager) interfaceViewLocked(iface *store.Interface) (*InterfaceView, e
 			DNS:                 nonNil(p.DNS),
 			Endpoint:            p.Endpoint,
 			PersistentKeepalive: p.PersistentKeepalive,
+			DownloadLimit:       p.DownloadLimit,
+			UploadLimit:         p.UploadLimit,
 			Description:         p.Description,
 			Enabled:             p.Enabled,
 			CreatedAt:           p.CreatedAt,
@@ -865,6 +922,14 @@ func validatePresharedKey(psk string) error {
 	}
 	if _, err := wgtypes.ParseKey(psk); err != nil {
 		return fmt.Errorf("invalid preshared key: must be a 32-byte base64 key (44 chars) or empty to auto-generate")
+	}
+	return nil
+}
+
+// validateLimits rejects negative rate limits (0 means unlimited).
+func validateLimits(download, upload int64) error {
+	if download < 0 || upload < 0 {
+		return fmt.Errorf("rate limits must be >= 0 (0 = unlimited)")
 	}
 	return nil
 }

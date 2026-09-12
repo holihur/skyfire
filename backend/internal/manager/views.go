@@ -36,8 +36,14 @@ type PeerInput struct {
 	DNS                 []string `json:"dns"`
 	Endpoint            string   `json:"endpoint"`
 	PersistentKeepalive int      `json:"persistentKeepalive"`
-	Description         string   `json:"description"`
-	Enabled             bool     `json:"enabled"`
+	// DownloadLimit caps the peer's download (server → peer) in bits per
+	// second. 0 means unlimited.
+	DownloadLimit int64 `json:"downloadLimit"`
+	// UploadLimit caps the peer's upload (peer → server) in bits per second.
+	// 0 means unlimited.
+	UploadLimit int64  `json:"uploadLimit"`
+	Description string `json:"description"`
+	Enabled     bool   `json:"enabled"`
 }
 
 // InterfaceView is an interface plus its live runtime state.
@@ -72,6 +78,8 @@ type PeerView struct {
 	DNS                 []string  `json:"dns"`
 	Endpoint            string    `json:"endpoint"`
 	PersistentKeepalive int       `json:"persistentKeepalive"`
+	DownloadLimit       int64     `json:"downloadLimit"`
+	UploadLimit         int64     `json:"uploadLimit"`
 	Description         string    `json:"description"`
 	Enabled             bool      `json:"enabled"`
 	Connected           bool      `json:"connected"`

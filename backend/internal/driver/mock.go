@@ -109,6 +109,12 @@ func (m *Mock) check(name string) error {
 	return nil
 }
 
+// ApplyShaping is a no-op: the mock driver performs no real traffic.
+func (m *Mock) ApplyShaping(string, []PeerShaping) error { return nil }
+
+// RemoveShaping is a no-op: the mock driver performs no real traffic.
+func (m *Mock) RemoveShaping(string) {}
+
 func (m *Mock) Status(name string) (DeviceStatus, error) {
 	m.Lock()
 	defer m.Unlock()

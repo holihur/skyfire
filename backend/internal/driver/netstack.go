@@ -1,6 +1,7 @@
 package driver
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -46,11 +47,19 @@ type Netstack struct {
 }
 
 type nsDevice struct {
-	dev  *device.Device
-	tun  *nsTun
-	mtu  int
-	addr []string
-	last Config
+	dev     *device.Device
+	tun     *nsTun
+	mtu     int
+	addr    []string
+	last    Config
+	shaping []nsShaping
+}
+
+// nsShaping is the per-peer rate limit applied in the userspace relay path.
+type nsShaping struct {
+	prefixes []netip.Prefix
+	download int64
+	upload   int64
 }
 
 // NewNetstack creates a netstack driver.
@@ -192,6 +201,8 @@ func (n *Netstack) ensure(name string) (*nsDevice, error) {
 	}
 	d.tun = t
 	d.dev = dev
+	shape := d.shaping
+	t.shaping.Store(&shape)
 	return d, nil
 }
 
@@ -235,6 +246,80 @@ func (n *Netstack) Remove(name string) error {
 	return nil
 }
 
+// ApplyShaping installs per-peer rate limits for the userspace relay path.
+func (n *Netstack) ApplyShaping(name string, peers []PeerShaping) error {
+	d := n.get(name)
+	if d == nil {
+		return fmt.Errorf("interface %s not created", name)
+	}
+	shape := buildNSShaping(peers)
+	d.shaping = shape
+	if d.tun != nil {
+		d.tun.shaping.Store(&shape)
+	}
+	return nil
+}
+
+// RemoveShaping clears per-peer rate limits.
+func (n *Netstack) RemoveShaping(name string) {
+	d := n.get(name)
+	if d == nil {
+		return
+	}
+	d.shaping = nil
+	if d.tun != nil {
+		var none []nsShaping
+		d.tun.shaping.Store(&none)
+	}
+}
+
+// buildNSShaping converts driver shaping specs into the userspace form,
+// keeping only peers that actually carry a limit.
+func buildNSShaping(peers []PeerShaping) []nsShaping {
+	var out []nsShaping
+	for _, p := range peers {
+		if p.DownloadLimit <= 0 && p.UploadLimit <= 0 {
+			continue
+		}
+		var prefixes []netip.Prefix
+		for _, s := range p.Prefixes {
+			if pre, err := netip.ParsePrefix(s); err == nil && pre.IsValid() {
+				prefixes = append(prefixes, pre)
+			}
+		}
+		if len(prefixes) == 0 {
+			continue
+		}
+		out = append(out, nsShaping{
+			prefixes: prefixes,
+			download: p.DownloadLimit,
+			upload:   p.UploadLimit,
+		})
+	}
+	return out
+}
+
+// shapingFor returns the download/upload limits matching the given tunnel
+// source address, using longest-prefix match. 0 means unlimited.
+func (t *nsTun) shapingFor(src netip.Addr) (download, upload int64) {
+	list := t.shaping.Load()
+	if list == nil || !src.IsValid() {
+		return 0, 0
+	}
+	best, bestBits := -1, -1
+	for i := range *list {
+		for _, pre := range (*list)[i].prefixes {
+			if pre.Contains(src) && pre.Bits() > bestBits {
+				best, bestBits = i, pre.Bits()
+			}
+		}
+	}
+	if best >= 0 {
+		return (*list)[best].download, (*list)[best].upload
+	}
+	return 0, 0
+}
+
 func (n *Netstack) Status(name string) (DeviceStatus, error) {
 	d := n.get(name)
 	if d == nil {
@@ -272,6 +357,7 @@ type nsTun struct {
 	localAddrs     []netip.Addr
 	peerNets       []netip.Prefix
 	forwarding     atomic.Bool
+	shaping        atomic.Pointer[[]nsShaping]
 	closeOnce      sync.Once
 	closed         atomic.Bool
 }
@@ -550,6 +636,8 @@ func (t *nsTun) handleTCP(fr *tcp.ForwarderRequest) {
 			fr.Complete(true)
 			return
 		}
+		src, _ := tcpipToNetip(fr.ID().RemoteAddress)
+		dl, ul := t.shapingFor(src)
 		raddr := &net.TCPAddr{IP: net.ParseIP(t.dialHost(dst.Addr())), Port: int(dst.Port())}
 		remote, err := net.DialTCP("tcp", nil, raddr)
 		if err != nil {
@@ -565,7 +653,7 @@ func (t *nsTun) handleTCP(fr *tcp.ForwarderRequest) {
 		}
 		fr.Complete(false)
 		client := gonet.NewTCPConn(&wq, ep)
-		relayConns(client, remote)
+		relayConns(client, remote, ul, dl)
 	}()
 }
 
@@ -590,6 +678,8 @@ func (t *nsTun) handleUDP(r *udp.ForwarderRequest) {
 		if err != nil {
 			return
 		}
+		src, _ := tcpipToNetip(r.ID().RemoteAddress)
+		dl, ul := t.shapingFor(src)
 		var wq waiter.Queue
 		ep, terr := r.CreateEndpoint(&wq)
 		if terr != nil {
@@ -597,7 +687,7 @@ func (t *nsTun) handleUDP(r *udp.ForwarderRequest) {
 			return
 		}
 		client := gonet.NewUDPConn(&wq, ep)
-		relayUDP(client, sock)
+		relayUDP(client, sock, ul, dl)
 	}()
 }
 
@@ -609,7 +699,7 @@ func closeWrite(c net.Conn) {
 	}
 }
 
-func relayConns(client net.Conn, remote net.Conn) {
+func relayConns(client net.Conn, remote net.Conn, uploadLimit, downloadLimit int64) {
 	// Wait for both directions before closing: closing either conn early
 	// would truncate the opposite direction and break TCP half-close
 	// (e.g. HTTP request + FIN followed by the response).
@@ -617,12 +707,12 @@ func relayConns(client net.Conn, remote net.Conn) {
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		_, _ = io.Copy(remote, client)
+		_, _ = io.Copy(remote, limitReader(client, uploadLimit))
 		closeWrite(remote)
 	}()
 	go func() {
 		defer wg.Done()
-		_, _ = io.Copy(client, remote)
+		_, _ = io.Copy(client, limitReader(remote, downloadLimit))
 		closeWrite(client)
 	}()
 	wg.Wait()
@@ -634,7 +724,9 @@ func relayConns(client net.Conn, remote net.Conn) {
 // flows whose peer never answers.
 const udpIdleTimeout = 2 * time.Minute
 
-func relayUDP(client *gonet.UDPConn, remote *net.UDPConn) {
+func relayUDP(client *gonet.UDPConn, remote *net.UDPConn, uploadLimit, downloadLimit int64) {
+	upLim := newByteLimiter(uploadLimit)
+	downLim := newByteLimiter(downloadLimit)
 	go func() {
 		buf := make([]byte, 65535)
 		for {
@@ -642,6 +734,11 @@ func relayUDP(client *gonet.UDPConn, remote *net.UDPConn) {
 			n, err := client.Read(buf)
 			if err != nil {
 				break
+			}
+			if upLim != nil {
+				if werr := upLim.WaitN(context.Background(), n); werr != nil {
+					break
+				}
 			}
 			if _, err := remote.Write(buf[:n]); err != nil {
 				break
@@ -657,6 +754,11 @@ func relayUDP(client *gonet.UDPConn, remote *net.UDPConn) {
 			n, err := remote.Read(buf)
 			if err != nil {
 				break
+			}
+			if downLim != nil {
+				if werr := downLim.WaitN(context.Background(), n); werr != nil {
+					break
+				}
 			}
 			if _, err := client.Write(buf[:n]); err != nil {
 				break

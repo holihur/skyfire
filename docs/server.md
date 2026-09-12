@@ -282,7 +282,8 @@ sudo skyfired -dns '' ...   # 禁用转发器
 3. **启停接口**：接口卡片上的 Up/Down 开关。
 4. **添加 Peer**：接口详情 → Add Peer → 填 `name`、`address`（留空自动分配）、
    `clientRoutes`（推送给客户端的 AllowedIPs，默认 `0.0.0.0/0, ::/0`）、
-   可选 PSK、`persistentKeepalive`。勾选 generate keys 自动生成密钥对。
+   可选 PSK、`persistentKeepalive`、可选**下载/上传限速**（Mbit/s，留空或 0
+   不限速；下载=服务端→对端，上传=对端→服务端）。勾选 generate keys 自动生成密钥对。
 5. **导出配置**：Peer 详情弹窗有四个页签：
    - **QR**：配置二维码（手机/平板扫码导入）
    - **Conf**：客户端 `.conf` 文本，可复制/下载

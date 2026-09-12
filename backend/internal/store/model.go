@@ -71,9 +71,15 @@ type Peer struct {
 	// Endpoint is the client's known endpoint (optional).
 	Endpoint string `json:"endpoint,omitempty"`
 	// PersistentKeepalive interval in seconds (0 to disable).
-	PersistentKeepalive int       `json:"persistentKeepalive"`
-	Description         string    `json:"description,omitempty"`
-	Enabled             bool      `json:"enabled"`
-	CreatedAt           time.Time `json:"createdAt"`
-	UpdatedAt           time.Time `json:"updatedAt"`
+	PersistentKeepalive int `json:"persistentKeepalive"`
+	// DownloadLimit caps how fast the server sends to this peer (the peer's
+	// download), in bits per second. 0 means unlimited.
+	DownloadLimit int64 `json:"downloadLimit,omitempty"`
+	// UploadLimit caps how fast the peer sends to the server (the peer's
+	// upload), in bits per second. 0 means unlimited.
+	UploadLimit int64     `json:"uploadLimit,omitempty"`
+	Description string    `json:"description,omitempty"`
+	Enabled     bool      `json:"enabled"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
 }

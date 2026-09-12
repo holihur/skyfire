@@ -148,6 +148,14 @@ func (u *Userspace) Remove(name string) error {
 	return delWGLink(name)
 }
 
+func (u *Userspace) ApplyShaping(name string, peers []PeerShaping) error {
+	return applyTCShaping(name, peers)
+}
+
+func (u *Userspace) RemoveShaping(name string) {
+	removeTCShaping(name)
+}
+
 func (u *Userspace) Status(name string) (DeviceStatus, error) {
 	wd := u.get(name)
 	if wd == nil {

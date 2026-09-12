@@ -109,7 +109,7 @@ func TestRelayConnsFullDuplex(t *testing.T) {
 	c1, c2 := net.Pipe()
 	r1, r2 := net.Pipe()
 	done := make(chan struct{})
-	go func() { relayConns(c1, r1); close(done) }()
+	go func() { relayConns(c1, r1, 0, 0); close(done) }()
 	if _, err := c2.Write([]byte("ping")); err != nil {
 		t.Fatal(err)
 	}

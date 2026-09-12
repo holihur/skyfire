@@ -81,6 +81,8 @@
   "dns": ["1.1.1.1"],
   "endpoint": "",
   "persistentKeepalive": 25,
+  "downloadLimit": 0,
+  "uploadLimit": 0,
   "description": "",
   "enabled": true,
   "connected": false,
@@ -107,6 +109,8 @@
   "dns": ["1.1.1.1"],
   "endpoint": "",
   "persistentKeepalive": 25,
+  "downloadLimit": 0,
+  "uploadLimit": 0,
   "description": "",
   "enabled": true
 }
@@ -117,6 +121,11 @@
 - `allowedIPs` 为空 ⇒ 默认取该地址的 `/32`（服务端侧可见源地址）。
 - `clientRoutes` 为空 ⇒ 默认 `["0.0.0.0/0","::/0"]`（推送给客户端）。
 - `withPreshared=true` 且 `presharedKey` 为空 ⇒ 自动生成 PSK。
+- `downloadLimit`/`uploadLimit` 为按对端限速，单位 **bit/s**，`0` 表示不限速。
+  `downloadLimit` 限制服务端 → 对端（对端下载），`uploadLimit` 限制对端 → 服务端
+  （对端上传）。限速按对端的 `allowedIPs`（缺省为其隧道地址 /32 或 /128）匹配。
+  仅 Linux 的 kernel / userspace 驱动通过 `tc` 生效；netstack 驱动在进程内中转层
+  生效；其余平台/驱动会保留配置但不强制执行（日志会有提示）。
 
 **InterfacePatch**（更新请求体，字段缺省=不变）
 

@@ -4,7 +4,10 @@
 // development and testing.
 package driver
 
-import "time"
+import (
+	"errors"
+	"time"
+)
 
 // Config is the desired wireguard device configuration.
 type Config struct {
@@ -28,6 +31,24 @@ type PeerSpec struct {
 	AllowedIPs          []string `json:"allowedIPs"`
 	PersistentKeepalive int      `json:"persistentKeepalive"`
 }
+
+// PeerShaping describes per-peer rate limits for one peer.
+type PeerShaping struct {
+	// Prefixes are the source/destination prefixes used to match this peer's
+	// traffic. They are the peer's server-side AllowedIPs (or its assigned
+	// tunnel address as a /32 or /128 when AllowedIPs is empty).
+	Prefixes []string
+	// DownloadLimit caps the peer's download (server → peer) in bits per
+	// second. 0 means unlimited.
+	DownloadLimit int64
+	// UploadLimit caps the peer's upload (peer → server) in bits per second.
+	// 0 means unlimited.
+	UploadLimit int64
+}
+
+// ErrShapingUnsupported is returned by ApplyShaping when the driver cannot
+// enforce rate limits. Callers should treat it as non-fatal and log a hint.
+var ErrShapingUnsupported = errors.New("rate limiting is not supported by this driver")
 
 // PeerStatus is live runtime information about a peer.
 type PeerStatus struct {
@@ -115,5 +136,11 @@ type Driver interface {
 	Remove(name string) error
 	// Status returns live runtime state for the device.
 	Status(name string) (DeviceStatus, error)
+	// ApplyShaping installs per-peer rate limits (download/upload in bits
+	// per second, 0 = unlimited). Drivers that cannot shape return
+	// ErrShapingUnsupported; the configuration is still kept.
+	ApplyShaping(name string, peers []PeerShaping) error
+	// RemoveShaping removes any per-peer rate limiting for the interface.
+	RemoveShaping(name string)
 	Close() error
 }

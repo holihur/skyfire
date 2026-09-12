@@ -9,6 +9,8 @@ export interface Peer {
   dns: string[]
   endpoint: string
   persistentKeepalive: number
+  downloadLimit: number
+  uploadLimit: number
   description: string
   enabled: boolean
   connected: boolean
@@ -64,6 +66,8 @@ export interface PeerInput {
   dns: string[]
   endpoint: string
   persistentKeepalive: number
+  downloadLimit: number
+  uploadLimit: number
   description: string
   enabled: boolean
 }

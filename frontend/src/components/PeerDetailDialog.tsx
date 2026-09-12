@@ -238,6 +238,14 @@ export default function PeerDetailDialog({ open, onOpenChange, ifaceName, peer, 
               label={t('peerDetail.info.keepalive')}
               value={peer.persistentKeepalive ? t('peerDetail.info.keepaliveS', { value: peer.persistentKeepalive }) : t('peerDetail.info.keepaliveOff')}
             />
+            <Info
+              label={t('peerDetail.info.downloadLimit')}
+              value={peer.downloadLimit ? t('peerDetail.info.rateMbitS', { value: peer.downloadLimit / 1_000_000 }) : t('peerDetail.info.rateUnlimited')}
+            />
+            <Info
+              label={t('peerDetail.info.uploadLimit')}
+              value={peer.uploadLimit ? t('peerDetail.info.rateMbitS', { value: peer.uploadLimit / 1_000_000 }) : t('peerDetail.info.rateUnlimited')}
+            />
           </dl>
         </TabsContent>
       </Tabs>

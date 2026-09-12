@@ -29,6 +29,8 @@ export default function PeerFormDialog({ open, onOpenChange, onDone, ifaceName, 
   const [address, setAddress] = useState('')
   const [endpoint, setEndpoint] = useState('')
   const [keepalive, setKeepalive] = useState('25')
+  const [downloadLimit, setDownloadLimit] = useState('')
+  const [uploadLimit, setUploadLimit] = useState('')
   const [clientRoutes, setClientRoutes] = useState('0.0.0.0/0\n::/0')
   const [dns, setDns] = useState('')
   const [description, setDescription] = useState('')
@@ -43,6 +45,8 @@ export default function PeerFormDialog({ open, onOpenChange, onDone, ifaceName, 
       setAddress(peer?.address ?? '')
       setEndpoint(peer?.endpoint ?? '')
       setKeepalive(String(peer?.persistentKeepalive ?? 25))
+      setDownloadLimit(peer?.downloadLimit ? String(peer.downloadLimit / 1_000_000) : '')
+      setUploadLimit(peer?.uploadLimit ? String(peer.uploadLimit / 1_000_000) : '')
       setClientRoutes(peer ? joinList(peer.clientRoutes) : '0.0.0.0/0\n::/0')
       setDns(joinList(peer?.dns))
       setDescription(peer?.description ?? '')
@@ -71,6 +75,8 @@ export default function PeerFormDialog({ open, onOpenChange, onDone, ifaceName, 
       dns: parseList(dns),
       endpoint: endpoint.trim(),
       persistentKeepalive: Math.max(0, Number(keepalive) || 0),
+      downloadLimit: Math.max(0, Math.round((Number(downloadLimit) || 0) * 1_000_000)),
+      uploadLimit: Math.max(0, Math.round((Number(uploadLimit) || 0) * 1_000_000)),
       description: description.trim(),
       enabled,
     }
@@ -148,6 +154,33 @@ export default function PeerFormDialog({ open, onOpenChange, onDone, ifaceName, 
               placeholder={t('peer.placeholder.endpoint')}
               value={endpoint}
               onChange={(e) => setEndpoint(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="peer-download-limit">{t('peer.label.downloadLimit')}</Label>
+            <Input
+              id="peer-download-limit"
+              type="number"
+              min={0}
+              step="0.5"
+              placeholder={t('peer.placeholder.rateLimit')}
+              value={downloadLimit}
+              onChange={(e) => setDownloadLimit(e.target.value)}
+            />
+          </div>
+          <div>
+            <Label htmlFor="peer-upload-limit">{t('peer.label.uploadLimit')}</Label>
+            <Input
+              id="peer-upload-limit"
+              type="number"
+              min={0}
+              step="0.5"
+              placeholder={t('peer.placeholder.rateLimit')}
+              value={uploadLimit}
+              onChange={(e) => setUploadLimit(e.target.value)}
             />
           </div>
         </div>
