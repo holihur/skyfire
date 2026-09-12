@@ -23,3 +23,6 @@ dist/
 # Local secrets / remote test hosts (never commit)
 .env
 .env.*
+
+# Local verification workspace (scripts + notes with live credentials)
+verif/
