@@ -69,6 +69,7 @@ func (s *Server) auth(next http.Handler) http.Handler {
 		if !isAPI ||
 			r.URL.Path == "/api/login" ||
 			r.URL.Path == "/api/logout" ||
+			r.URL.Path == "/api/auth" ||
 			strings.HasPrefix(r.URL.Path, "/api/p/") {
 			next.ServeHTTP(w, r)
 			return
@@ -176,12 +177,26 @@ func logging(log *slog.Logger, next http.Handler) http.Handler {
 		next.ServeHTTP(sr, r)
 		log.Info("http",
 			"method", r.Method,
-			"path", r.URL.Path,
+			"path", redactPath(r.URL.Path),
 			"status", sr.status,
 			"bytes", sr.bytes,
 			"duration", time.Since(start).Round(time.Millisecond).String(),
 		)
 	})
+}
+
+// redactPath removes credential material (the token-scoped client endpoints)
+// from the access log so secrets never land in log storage.
+func redactPath(p string) string {
+	const prefix = "/api/p/"
+	rest, ok := strings.CutPrefix(p, prefix)
+	if !ok {
+		return p
+	}
+	if i := strings.IndexByte(rest, '/'); i >= 0 {
+		return prefix + "<redacted>" + rest[i:]
+	}
+	return prefix + "<redacted>"
 }
 
 // setStaticCache marks content-hashed assets as immutable and everything else

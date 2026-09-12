@@ -1,17 +1,21 @@
 package api
 
 import (
+	"crypto/subtle"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
 	"skyfire/internal/driver"
 	"skyfire/internal/manager"
 	"skyfire/internal/store"
+	"skyfire/internal/totp"
 )
 
 // Server exposes the manager over HTTP and optionally serves the built
@@ -26,12 +30,20 @@ type Server struct {
 	token    string
 	username string
 	password string
-	log      *slog.Logger
-	mux      *http.ServeMux
-	handler  http.Handler
+	// totpSecret, when non-empty, requires a TOTP code in addition to the
+	// password on web login. totpBound is false until the first login has
+	// confirmed an authenticator.
+	totpSecret string
+	totpBound  bool
+	totpPath   string
+	totpMu     sync.Mutex
+	log        *slog.Logger
+	mux        *http.ServeMux
+	handler    http.Handler
 
 	sessionMu sync.Mutex
 	sessions  map[string]time.Time
+	login     *loginLimiter
 }
 
 // Options configures the HTTP server.
@@ -44,6 +56,12 @@ type Options struct {
 	// Username/Password enable single-user password login (cookie session).
 	Username string
 	Password string
+	// TOTPSecret, when set, enables TOTP two-factor authentication.
+	TOTPSecret string
+	// TOTPBound reports whether an authenticator has already been enrolled.
+	TOTPBound bool
+	// TOTPPath is where a successful first-login enrollment is persisted.
+	TOTPPath string
 	// Version is the daemon version reported by /api/health.
 	Version string
 	Log     *slog.Logger
@@ -56,18 +74,22 @@ func New(mgr *manager.Manager, drv driver.Driver, dryRun bool, opts Options) *Se
 		log = slog.Default()
 	}
 	s := &Server{
-		mgr:      mgr,
-		drv:      drv,
-		dryRun:   dryRun,
-		version:  opts.Version,
-		static:   opts.StaticDir,
-		staticFS: opts.StaticFS,
-		token:    opts.Token,
-		username: opts.Username,
-		password: opts.Password,
-		log:      log,
-		mux:      http.NewServeMux(),
-		sessions: make(map[string]time.Time),
+		mgr:        mgr,
+		drv:        drv,
+		dryRun:     dryRun,
+		version:    opts.Version,
+		static:     opts.StaticDir,
+		staticFS:   opts.StaticFS,
+		token:      opts.Token,
+		username:   opts.Username,
+		password:   opts.Password,
+		totpSecret: opts.TOTPSecret,
+		totpBound:  opts.TOTPBound,
+		totpPath:   opts.TOTPPath,
+		log:        log,
+		mux:        http.NewServeMux(),
+		sessions:   make(map[string]time.Time),
+		login:      newLoginLimiter(),
 	}
 	s.routes()
 	s.handler = s.chain()
@@ -79,6 +101,7 @@ func (s *Server) routes() {
 
 	mux.HandleFunc("POST /api/login", s.handleLogin)
 	mux.HandleFunc("POST /api/logout", s.handleLogout)
+	mux.HandleFunc("GET /api/auth", s.handleAuthStatus)
 	mux.HandleFunc("GET /api/health", s.handleHealth)
 	mux.HandleFunc("GET /api/settings", s.handleGetSettings)
 	mux.HandleFunc("PUT /api/settings", s.handlePutSettings)
@@ -115,6 +138,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 type loginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+	// TOTP is the 6-digit authenticator code, required when 2FA is enabled.
+	TOTP string `json:"totp"`
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -127,12 +152,113 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 401, errors.New("password login not configured"))
 		return
 	}
-	if in.Username != s.username || in.Password != s.password {
+
+	key := clientKey(r)
+	if ok, retry := s.login.allowed(key); !ok {
+		w.Header().Set("Retry-After", strconv.Itoa(int(retry.Seconds())+1))
+		writeError(w, http.StatusTooManyRequests, errors.New("too many failed attempts, try again later"))
+		return
+	}
+
+	// Constant-time credential comparison so a mismatch does not leak which
+	// field was wrong through response timing.
+	userOK := subtle.ConstantTimeCompare([]byte(in.Username), []byte(s.username)) == 1
+	passOK := subtle.ConstantTimeCompare([]byte(in.Password), []byte(s.password)) == 1
+	if !userOK || !passOK {
+		s.login.fail(key)
 		writeError(w, http.StatusUnauthorized, errors.New("invalid credentials"))
 		return
 	}
+
+	if s.totpEnabled() {
+		if err := s.checkTOTP(w, key, &in); err != nil {
+			return // a response was already written
+		}
+	}
+
+	s.login.reset(key)
 	s.createSession(w, r)
 	writeJSON(w, 200, map[string]any{"ok": true})
+}
+
+// totpEnabled reports whether TOTP two-factor is active.
+func (s *Server) totpEnabled() bool { return s.totpSecret != "" }
+
+// checkTOTP handles the second factor: it either writes an enrollment payload,
+// requests a code, or validates the submitted code. It returns a non-nil
+// error when it has already written a response and the caller must stop.
+func (s *Server) checkTOTP(w http.ResponseWriter, key string, in *loginRequest) error {
+	s.totpMu.Lock()
+	secret, bound := s.totpSecret, s.totpBound
+	s.totpMu.Unlock()
+
+	// First login: no authenticator bound yet. Ask the user to enroll one and
+	// confirm with a code before creating a session.
+	if !bound {
+		if in.TOTP == "" {
+			writeJSON(w, 200, s.enrollPayload(secret))
+			return errResponded
+		}
+		ok, err := totp.Verify(secret, in.TOTP)
+		if err != nil || !ok {
+			s.login.fail(key)
+			writeError(w, http.StatusUnauthorized, errors.New("invalid two-factor code"))
+			return errResponded
+		}
+		s.totpMu.Lock()
+		s.totpBound = true
+		s.totpMu.Unlock()
+		if s.totpPath != "" {
+			if err := totp.Save(s.totpPath, totp.Config{Secret: secret, Confirmed: true}); err != nil {
+				s.log.Error("persist totp binding", "error", err)
+			}
+		}
+		return nil
+	}
+
+	// Bound: a valid code is mandatory.
+	if in.TOTP == "" {
+		writeJSON(w, 200, map[string]any{"totpRequired": true})
+		return errResponded
+	}
+	ok, err := totp.Verify(secret, in.TOTP)
+	if err != nil || !ok {
+		s.login.fail(key)
+		writeError(w, http.StatusUnauthorized, errors.New("invalid two-factor code"))
+		return errResponded
+	}
+	return nil
+}
+
+// errResponded signals that a handler has already written its response.
+var errResponded = errors.New("response already written")
+
+// enrollPayload builds the first-login enrollment response: the shared secret,
+// the otpauth URI and a QR data URL for authenticator apps.
+func (s *Server) enrollPayload(secret string) map[string]any {
+	uri := totp.ProvisioningURI(secret, s.username, "Skyfire")
+	resp := map[string]any{
+		"enroll": true,
+		"secret": secret,
+		"uri":    uri,
+	}
+	if png, err := manager.ConfigQR(uri); err == nil {
+		resp["qr"] = "data:image/png;base64," + base64.StdEncoding.EncodeToString(png)
+	}
+	return resp
+}
+
+// handleAuthStatus is public and lets the login page discover which factors are
+// required, without revealing any credential material.
+func (s *Server) handleAuthStatus(w http.ResponseWriter, _ *http.Request) {
+	s.totpMu.Lock()
+	bound := s.totpBound
+	s.totpMu.Unlock()
+	writeJSON(w, 200, map[string]any{
+		"passwordLogin": s.password != "",
+		"totpEnabled":   s.totpEnabled(),
+		"totpBound":     bound,
+	})
 }
 
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {

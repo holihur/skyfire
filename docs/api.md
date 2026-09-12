@@ -22,7 +22,7 @@
    ```
 
 - 若服务端 `-token` 与 `-password` 都为空 ⇒ API **完全无认证**。
-- **始终免认证**：`POST /api/login`、`POST /api/logout`、
+- **始终免认证**：`POST /api/login`、`POST /api/logout`、`GET /api/auth`、
   `GET /api/p/{token}/wg.conf`、`GET /api/p/{token}/wg.png`。
 - 未认证访问返回 `401 {"error":"unauthorized"}`。
 
@@ -139,16 +139,62 @@
 
 ### 3.1 登录 / 登出
 
+登录采用“密码 + TOTP 两步验证”（TOTP 默认开启）。首次登录需先绑定身份
+验证器。用于前端渲染的公开端点：
+
 ```bash
-curl -i -X POST http://localhost:51821/api/login \
+curl http://localhost:51821/api/auth
+# => {"passwordLogin":true,"totpEnabled":true,"totpBound":false}
+```
+
+**① 首次登录（未绑定）**：只提交用户名+密码，服务端返回绑定信息（不建会话）：
+
+```bash
+curl -s -X POST http://localhost:51821/api/login \
   -H 'Content-Type: application/json' \
   -d '{"username":"admin","password":"demo"}'
 ```
-`200`，响应带 `Set-Cookie: skyfire_session=…`（HttpOnly，TTL 24h）：
+```json
+{
+  "enroll": true,
+  "secret": "JBSWY3DPEHPK3PXP",
+  "uri": "otpauth://totp/Skyfire:admin?secret=…&issuer=Skyfire&algorithm=SHA1&digits=6&period=30",
+  "qr": "data:image/png;base64,…"
+}
+```
+
+用身份验证器扫码后，带上一次性验证码再次提交，即完成绑定并登录：
+
+```bash
+curl -c cookie.txt -X POST http://localhost:51821/api/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"demo","totp":"123456"}'
+# => 200 {"ok":true}   （绑定持久化到 totp.json）
+```
+
+**② 已绑定后登录**：不带验证码时会返回需要验证码的提示（仍为 `200`）：
+
+```bash
+curl -s -X POST http://localhost:51821/api/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"demo"}'
+# => 200 {"totpRequired":true}
+```
+
+带上正确的 6 位验证码后登录成功，响应带 `Set-Cookie: skyfire_session=…`
+（HttpOnly，`SameSite=Lax`，TTL 24h）：
+
 ```json
 { "ok": true }
 ```
-凭证错误：`401 {"error":"invalid credentials"}`。
+
+错误处理：
+
+- 用户名/密码错误：`401 {"error":"invalid credentials"}`
+- 验证码错误：`401 {"error":"invalid two-factor code"}`
+- 失败过多（同 IP 15 分钟内 10 次）：`429`，带 `Retry-After` 头
+
+> 验证码允许 ±1 个时间步（30s）的时钟偏差。`{"totp":""}` 等同于不提交。
 
 ```bash
 curl -b cookie.txt -X POST http://localhost:51821/api/logout

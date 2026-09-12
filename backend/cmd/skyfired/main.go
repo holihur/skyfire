@@ -30,6 +30,7 @@ import (
 	"skyfire/internal/driver"
 	"skyfire/internal/manager"
 	"skyfire/internal/store"
+	"skyfire/internal/totp"
 	"skyfire/internal/web"
 )
 
@@ -42,6 +43,10 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "update" {
 		os.Exit(runUpdate(os.Args[2:]))
 	}
+	// `skyfired totp` inspects or resets the two-factor binding.
+	if len(os.Args) > 1 && os.Args[1] == "totp" {
+		os.Exit(runTOTPCmd(os.Args[2:]))
+	}
 
 	var (
 		configPath = flag.String("config", "", "path to the persisted configuration file (auto-resolved when empty)")
@@ -51,6 +56,7 @@ func main() {
 		token      = flag.String("token", "", "bearer token required for API access (empty disables auth)")
 		username   = flag.String("username", "admin", "username for the single-user web login")
 		password   = flag.String("password", "", "password for the single-user web login (auto-generated if empty)")
+		totpOn     = flag.Bool("totp", true, "require TOTP two-factor authentication on web login (first login binds an authenticator)")
 		static     = flag.String("static", "", "path to the built frontend directory to serve")
 		demo       = flag.Bool("demo", false, "start with a mock driver and sample data (no system changes)")
 		verbose    = flag.Bool("verbose", false, "debug logging")
@@ -61,7 +67,8 @@ func main() {
 	flag.Usage = func() {
 		out := flag.CommandLine.Output()
 		fmt.Fprint(out, "Usage: skyfired [flags]\n")
-		fmt.Fprint(out, "       skyfired update [flags]   self-update to the latest release\n\n")
+		fmt.Fprint(out, "       skyfired update [flags]   self-update to the latest release\n")
+		fmt.Fprint(out, "       skyfired totp [status|reset]   inspect or re-bind two-factor auth\n\n")
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -88,10 +95,44 @@ func main() {
 			*username = "admin"
 			*password = "demo"
 		}
+		// demo mode keeps the login simple: no authenticator needed
+		*totpOn = false
 	}
 
 	if *configPath == "" {
 		*configPath = resolveConfigPath()
+	}
+
+	// TOTP two-factor state. Enabled by default; the secret is generated (but
+	// not yet bound) so the first successful password login can enroll an
+	// authenticator.
+	totpPath := ""
+	var totpCfg totp.Config
+	if *totpOn {
+		totpPath = totpFilePath(*configPath)
+		loaded, err := totp.Load(totpPath)
+		if err != nil {
+			log.Error("load totp configuration", "error", err)
+			os.Exit(1)
+		}
+		totpCfg = loaded
+		if totpCfg.Secret == "" {
+			secret, err := totp.GenerateSecret()
+			if err != nil {
+				log.Error("generate totp secret", "error", err)
+				os.Exit(1)
+			}
+			totpCfg = totp.Config{Secret: secret}
+			if err := totp.Save(totpPath, totpCfg); err != nil {
+				log.Error("save totp configuration", "error", err)
+				os.Exit(1)
+			}
+		}
+		log.Info("two-factor authentication enabled (TOTP)",
+			"bound", totpCfg.Bound(),
+			"hint", "bind an authenticator on first login; run 'skyfired totp reset' to re-bind")
+	} else {
+		log.Warn("two-factor authentication disabled (-totp=false)")
 	}
 
 	if *password == "" {
@@ -154,12 +195,15 @@ func main() {
 	)
 
 	srv := api.New(mgr, drv, *dryRun, api.Options{
-		StaticDir: *static,
-		Token:     *token,
-		Username:  *username,
-		Password:  *password,
-		Version:   version,
-		Log:       log,
+		StaticDir:  *static,
+		Token:      *token,
+		Username:   *username,
+		Password:   *password,
+		TOTPSecret: totpCfg.Secret,
+		TOTPBound:  totpCfg.Bound(),
+		TOTPPath:   totpPath,
+		Version:    version,
+		Log:        log,
 	})
 	if *static == "" {
 		sub, err := fs.Sub(web.Dist, "dist")
@@ -168,12 +212,15 @@ func main() {
 			os.Exit(1)
 		}
 		srv = api.New(mgr, drv, *dryRun, api.Options{
-			StaticFS: sub,
-			Token:    *token,
-			Username: *username,
-			Password: *password,
-			Version:  version,
-			Log:      log,
+			StaticFS:   sub,
+			Token:      *token,
+			Username:   *username,
+			Password:   *password,
+			TOTPSecret: totpCfg.Secret,
+			TOTPBound:  totpCfg.Bound(),
+			TOTPPath:   totpPath,
+			Version:    version,
+			Log:        log,
 		})
 	}
 	httpSrv := &http.Server{

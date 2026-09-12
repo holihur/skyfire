@@ -54,12 +54,31 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.text()) as unknown as T
 }
 
+export interface LoginResponse {
+  ok?: boolean
+  /** TOTP is enabled and a code is required to finish signing in. */
+  totpRequired?: boolean
+  /** TOTP is enabled but not yet bound; enroll an authenticator. */
+  enroll?: boolean
+  secret?: string
+  uri?: string
+  /** data: URL of the enrollment QR code. */
+  qr?: string
+}
+
+export interface AuthStatus {
+  passwordLogin: boolean
+  totpEnabled: boolean
+  totpBound: boolean
+}
+
 export const api = {
-  login: (username: string, password: string) =>
-    request<{ ok: boolean }>('/api/login', {
+  login: (username: string, password: string, totp?: string) =>
+    request<LoginResponse>('/api/login', {
       method: 'POST',
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({ username, password, totp: totp ?? '' }),
     }),
+  authStatus: () => request<AuthStatus>('/api/auth'),
   logout: () => request<{ ok: boolean }>('/api/logout', { method: 'POST' }),
   health: () => request<{ status: string; driver: string; dryRun: boolean; version: string }>('/api/health'),
   getText: (url: string) => request<string>(url),

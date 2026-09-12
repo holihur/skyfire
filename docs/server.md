@@ -169,6 +169,7 @@ Restart=on-failure
 | `-token` | 空 | Bearer Token（空则关闭 token 认证） |
 | `-username` | `admin` | 单用户 Web 登录名 |
 | `-password` | 自动生成 | 单用户 Web 登录密码 |
+| `-totp` | `true` | 是否要求 TOTP 两步验证（首次登录绑定身份验证器） |
 | `-static` | 空 | 指定前端目录，覆盖内嵌 UI |
 | `-dns` | `127.0.0.1:53` | 隧道 DNS 转发器监听地址（空 = 禁用；`-dry-run`/`-demo` 下自动禁用） |
 | `-dns-upstream` | `8.8.8.8:53,1.1.1.1:53` | 转发器上游 DNS（逗号分隔，逐个尝试） |
@@ -250,18 +251,36 @@ sudo skyfired -dns '' ...   # 禁用转发器
 
 ## 6. 认证与安全
 
-- **登录密码**：单用户、Session Cookie（`skyfire_session`，HttpOnly，TTL 24h）。
-  密码为空时每次启动随机生成一个 16 位密码并打印到日志；用 `-password`
-  或 `SKYFIRE_PASSWORD` 固定。
-- **Bearer Token**：`Authorization: Bearer <token>`，适合脚本/非浏览器调用。
-- 两者都为空 ⇒ API **完全无认证**（仅建议本地/演示环境），启动时会打 warn。
+- **登录密码**：单用户、Session Cookie（`skyfire_session`，HttpOnly，
+  `SameSite=Lax`，HTTPS 下自动 `Secure`，TTL 24h）。密码为空时每次启动随机
+  生成一个 16 位密码并打印到日志；用 `-password` 或 `SKYFIRE_PASSWORD` 固定。
+- **两步验证（TOTP，默认开启）**：登录需要“密码 + 6 位动态验证码”。**首次
+  登录会自动进入绑定流程**：页面显示二维码与密钥，用身份验证器 App（Google
+  Authenticator / 1Password / Authy 等）扫码后输入一次验证码即完成绑定。
+  - 关闭：`-totp=false`。
+  - 设备丢失/换机：`sudo skyfired totp reset` 清除绑定，下次登录重新绑定；
+    `sudo skyfired totp status` 查看绑定状态、密钥与当前验证码。
+- **防暴力破解**：同一客户端 IP 在 15 分钟内失败 10 次后临时封禁（返回 `429`），
+  仅内存记录、自动过期。
+- **Bearer Token**：`Authorization: Bearer <token>`，适合脚本/非浏览器调用
+  （不参与 TOTP）。
+- 密码与 Token 都为空 ⇒ API **完全无认证**（仅建议本地/演示环境），启动时打
+  warn。
 - **始终免认证**的端点：
   - `POST /api/login`、`POST /api/logout`
+  - `GET /api/auth`（仅返回是否需要密码/是否已绑定 TOTP，用于登录页）
   - `GET /api/p/{token}/wg.conf`、`GET /api/p/{token}/wg.png`
     （token 本身即凭据，且只暴露该 Peer 的配置）
 - 其余一切 `/api/*` 都需要认证。
 - 建议：公网部署时置于 HTTPS 反向代理之后；`/api/p/` 的 token 是明文凭据，
-  走 TLS 更安全。
+  走 TLS 更安全。访问日志已对 `/api/p/<token>/...` 做脱敏。
+
+> 涉及个人数据处理与 GDPR 合规（数据最小化、保留期、数据主体权利、安全措施）
+> 请见 [隐私与 GDPR 合规说明](privacy.md)。
+>
+> **升级提示**：TOTP 默认开启。从旧版本升级后首次启动会生成待绑定的 TOTP
+> 密钥（`totp.json`），下一次 Web 登录会要求扫码绑定；无需提前配置。若要临时
+> 关闭，启动时加 `-totp=false`。
 
 ---
 

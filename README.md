@@ -16,7 +16,8 @@ WireGuard 可视化配置管理工具：一个守护进程管理多个 WireGuard
 - 客户端按域名 / CIDR 白名单分流（支持 `*.example.com` 通配符，白名单走隧道、其余直连）
 - 实时状态：连接状态、最后一次握手、收发流量
 - 服务器内置 DNS 转发（客户端默认经隧道使用干净解析）+ 全局流量转发开关
-- 单用户密码登录（Session Cookie）+ 可选 Bearer Token
+- 单用户密码登录（Session Cookie）+ **默认开启的 TOTP 两步验证**（首次登录扫码绑定）+ 可选 Bearer Token
+- 登录暴力破解防护、访问日志凭证脱敏、敏感文件 `0600`（见 [隐私与 GDPR 合规说明](docs/privacy.md))
 - 单一可执行文件（Web UI 内嵌）
 
 ## 文档
@@ -24,6 +25,7 @@ WireGuard 可视化配置管理工具：一个守护进程管理多个 WireGuard
 - [服务端 skyfired 使用文档](docs/server.md)：安装、运行、配置、驱动、Web UI 操作
 - [桌面客户端 skyfire-client 使用文档](docs/client.md)：平台、用法、路由、权限、限制
 - [REST API](docs/api.md)：认证、端点、请求/响应示例
+- [隐私与 GDPR 合规说明](docs/privacy.md)：处理的数据、保留期、安全措施、数据主体权利
 - [常见问题 / 故障排查](docs/faq.md)
 
 ## 快速安装（纯二进制，无需 Go/Node 工具链）

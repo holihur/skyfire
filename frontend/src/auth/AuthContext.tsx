@@ -1,15 +1,19 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import { api, isUnauthorized } from '../lib/api'
+import { api, isUnauthorized, type LoginResponse } from '../lib/api'
 
 interface LoginResult {
   ok: boolean
   networkError: boolean
+  /** Server body for 2FA/enrollment continuation (present on non-network errors). */
+  body?: LoginResponse
+  /** Server error message (e.g. invalid two-factor code). */
+  error?: string
 }
 
 interface AuthState {
   authed: boolean
   loading: boolean
-  login: (username: string, password: string, remember?: boolean) => Promise<LoginResult>
+  login: (username: string, password: string, totp?: string) => Promise<LoginResult>
   logout: () => Promise<void>
 }
 
@@ -50,18 +54,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('skyfire:unauthorized', onUnauthorized)
   }, [])
 
-  const login = useCallback(async (username: string, password: string): Promise<LoginResult> => {
+  const login = useCallback(async (username: string, password: string, totp?: string): Promise<LoginResult> => {
     try {
-      const res = await api.login(username, password)
+      const res = await api.login(username, password, totp)
       if (res?.ok) {
         setAuthed(true)
-        return { ok: true, networkError: false }
+        return { ok: true, networkError: false, body: res }
       }
-      // 200 without ok:true (e.g. empty response): the daemon is not answering properly
-      return { ok: false, networkError: true }
+      // 200 without ok:true carries a 2FA / enrollment continuation
+      return { ok: false, networkError: false, body: res }
     } catch (err) {
-      // only 401 means bad credentials; anything else is a network/daemon failure
-      return { ok: false, networkError: !isUnauthorized(err) }
+      // only 401 means bad credentials/code; anything else is a network failure
+      return {
+        ok: false,
+        networkError: !isUnauthorized(err),
+        error: err instanceof Error ? err.message : String(err),
+      }
     }
   }, [])
 

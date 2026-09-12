@@ -48,7 +48,8 @@ func Save(path string, cfg *Config) error {
 		return fmt.Errorf("marshal config: %w", err)
 	}
 	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o640); err != nil {
+	// 0600: the file holds WireGuard private keys and client tokens.
+	if err := os.WriteFile(tmp, data, 0o600); err != nil {
 		return fmt.Errorf("write config: %w", err)
 	}
 	if err := os.Rename(tmp, path); err != nil {
