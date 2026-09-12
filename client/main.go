@@ -24,6 +24,7 @@ func main() {
 		whitelist   = flag.String("whitelist", "", "comma-separated domains/CIDRs routed through the tunnel (empty = full tunnel); saved and applied on connect")
 		dryRun      = flag.Bool("dry-run", false, "validate the configuration without creating a tunnel")
 		cliMode     = flag.Bool("cli", false, "run in the terminal instead of the system tray")
+		noReconnect = flag.Bool("no-reconnect", false, "disable automatic reconnect when the tunnel drops")
 		verbose     = flag.Bool("verbose", false, "enable debug logging")
 		showVersion = flag.Bool("version", false, "print the version and exit")
 	)
@@ -61,6 +62,9 @@ func main() {
 	}
 
 	a := app.New(store, log)
+	if *noReconnect {
+		a.SetAutoReconnect(false)
+	}
 	if *connect != "" {
 		a.SetAutoConnect(true)
 	}

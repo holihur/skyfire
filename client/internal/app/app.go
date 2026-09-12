@@ -3,6 +3,7 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"sync"
@@ -36,9 +37,22 @@ func (s Status) String() string {
 	}
 }
 
+// Reconnect tuning. A tunnel that uses persistent keepalive refreshes its
+// handshake roughly every two minutes, so a gap beyond staleAfter means the
+// link is down. graceAfter covers the window right after bring-up before the
+// first handshake completes.
+const (
+	probeInterval = 15 * time.Second
+	staleAfter    = 150 * time.Second
+	graceAfter    = 90 * time.Second
+	backoffBase   = 2 * time.Second
+	backoffMax    = 60 * time.Second
+)
+
 // App owns the tunnel and the connection string.
 type App struct {
 	mu          sync.Mutex
+	connMu      sync.Mutex // serializes tunnel up/down sequences
 	store       *config.Store
 	tun         *tunnel.Tunnel
 	status      Status
@@ -48,6 +62,14 @@ type App struct {
 	autoConnect bool
 	onChange    func(Status, string)
 	log         *slog.Logger
+
+	autoReconnect bool
+	desired       bool
+	connectedAt   time.Time
+	monCancel     context.CancelFunc
+
+	lastTraffic   tunnel.Stats
+	lastTrafficAt time.Time
 }
 
 // New creates an app backed by the given store.
@@ -55,7 +77,7 @@ func New(store *config.Store, log *slog.Logger) *App {
 	if log == nil {
 		log = slog.Default()
 	}
-	return &App{store: store, tun: tunnel.New(log), log: log}
+	return &App{store: store, tun: tunnel.New(log), log: log, autoReconnect: true}
 }
 
 // SetLocalConf makes the app use a local WireGuard configuration instead of
@@ -115,8 +137,17 @@ func (a *App) AutoConnect() bool {
 	return a.autoConnect
 }
 
-// Connect fetches (or reuses) the configuration and brings the tunnel up.
+// Connect fetches (or reuses) the configuration and brings the tunnel up. It
+// also arms the reconnect supervisor when auto-reconnect is enabled.
 func (a *App) Connect() error {
+	a.setDesired(true)
+	err := a.bringUp()
+	a.watch()
+	return err
+}
+
+// bringUp loads the configuration and raises the tunnel.
+func (a *App) bringUp() error {
 	a.setStatus(Connecting, "")
 	text, err := a.loadConfig()
 	if err != nil {
@@ -145,17 +176,29 @@ func (a *App) Connect() error {
 		a.setStatus(Connected, "dry-run")
 		return nil
 	}
-	if err := a.tun.Up(text, a.store.Whitelist()); err != nil {
+	a.connMu.Lock()
+	err = a.tun.Up(text, a.store.Whitelist())
+	a.connMu.Unlock()
+	if err != nil {
 		a.setStatus(Error, err.Error())
 		return err
 	}
+	a.mu.Lock()
+	a.connectedAt = time.Now()
+	a.mu.Unlock()
 	a.setStatus(Connected, "")
 	return nil
 }
 
-// Disconnect tears the tunnel down.
+// Disconnect tears the tunnel down and stops the reconnect supervisor. This is
+// the explicit "the user wants the tunnel down" action.
 func (a *App) Disconnect() error {
-	if err := a.tun.Down(); err != nil {
+	a.setDesired(false)
+	a.stopMonitor()
+	a.connMu.Lock()
+	err := a.tun.Down()
+	a.connMu.Unlock()
+	if err != nil {
 		a.setStatus(Error, err.Error())
 		return err
 	}
@@ -174,6 +217,188 @@ func (a *App) Toggle() error {
 
 // Describe returns the interface name of the active tunnel (or "").
 func (a *App) Describe() string { return a.tun.Interface() }
+
+// TrafficStats is a snapshot of tunnel transfer counters from the client's
+// point of view: Rx is downloaded, Tx is uploaded. The rates are measured
+// against the previous Traffic call, so callers should poll at a steady
+// interval.
+type TrafficStats struct {
+	Rx     uint64 // total bytes received (download)
+	Tx     uint64 // total bytes sent (upload)
+	RxRate float64
+	TxRate float64
+	Active bool // true when the tunnel is up and counters are readable
+}
+
+// Traffic returns the latest transfer counters and per-second rates. When the
+// tunnel is down it returns a zero snapshot with Active=false.
+func (a *App) Traffic() TrafficStats {
+	st, ok := a.tun.Stats()
+	if !ok {
+		return TrafficStats{}
+	}
+	now := time.Now()
+	a.mu.Lock()
+	prev := a.lastTraffic
+	prevAt := a.lastTrafficAt
+	a.lastTraffic = st
+	a.lastTrafficAt = now
+	a.mu.Unlock()
+
+	out := TrafficStats{Rx: st.RxBytes, Tx: st.TxBytes, Active: true}
+	if !prevAt.IsZero() {
+		if d := now.Sub(prevAt).Seconds(); d > 0 {
+			if st.RxBytes >= prev.RxBytes {
+				out.RxRate = float64(st.RxBytes-prev.RxBytes) / d
+			}
+			if st.TxBytes >= prev.TxBytes {
+				out.TxRate = float64(st.TxBytes-prev.TxBytes) / d
+			}
+		}
+	}
+	return out
+}
+
+// SetAutoReconnect enables or disables automatic reconnection after the tunnel
+// drops. It is enabled by default. Disabling it never tears an active tunnel
+// down; it only stops the supervisor.
+func (a *App) SetAutoReconnect(v bool) {
+	a.mu.Lock()
+	a.autoReconnect = v
+	a.mu.Unlock()
+}
+
+func (a *App) setDesired(v bool) {
+	a.mu.Lock()
+	a.desired = v
+	a.mu.Unlock()
+}
+
+func (a *App) isDesired() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.desired
+}
+
+// watch (re)starts the reconnect supervisor when auto-reconnect is enabled.
+func (a *App) watch() {
+	a.mu.Lock()
+	if !a.autoReconnect || a.dryRun {
+		a.mu.Unlock()
+		return
+	}
+	if a.monCancel != nil {
+		a.monCancel()
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	a.monCancel = cancel
+	a.mu.Unlock()
+	go a.monitor(ctx)
+}
+
+func (a *App) stopMonitor() {
+	a.mu.Lock()
+	cancel := a.monCancel
+	a.monCancel = nil
+	a.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+}
+
+// monitor keeps the tunnel alive: it probes link health and re-establishes the
+// tunnel with exponential backoff when the link drops. It exits when the
+// context is cancelled (Disconnect) or when the tunnel is no longer desired.
+func (a *App) monitor(ctx context.Context) {
+	ticker := time.NewTicker(probeInterval)
+	defer ticker.Stop()
+	fails := 0
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+		if !a.isDesired() {
+			return
+		}
+		if a.healthy() {
+			fails = 0
+			continue
+		}
+		fails++
+		wait := backoff(fails)
+		a.log.Warn("tunnel unhealthy; reconnecting", "attempt", fails, "wait", wait.String())
+		a.setStatus(Connecting, "reconnecting")
+		a.connMu.Lock()
+		_ = a.tun.Down()
+		a.connMu.Unlock()
+		if !sleepCtx(ctx, wait) || !a.isDesired() {
+			return
+		}
+		if err := a.bringUp(); err != nil {
+			a.log.Warn("reconnect attempt failed", "error", err)
+			continue
+		}
+		if !a.isDesired() {
+			// Disconnect raced with the rebuild; honor it.
+			a.connMu.Lock()
+			_ = a.tun.Down()
+			a.connMu.Unlock()
+			a.setStatus(Disconnected, "")
+			return
+		}
+		a.log.Info("tunnel reconnected")
+		fails = 0
+	}
+}
+
+// healthy reports whether the tunnel is up and its handshakes are fresh. A
+// tunnel without persistent keepalive is treated as healthy while up, because
+// an idle peer legitimately has no recent handshake.
+func (a *App) healthy() bool {
+	if !a.tun.IsUp() {
+		return false
+	}
+	h, ok := a.tun.Stats()
+	if !ok {
+		return false
+	}
+	if !h.HasKeepalive {
+		return true
+	}
+	if h.Last.IsZero() {
+		a.mu.Lock()
+		since := time.Since(a.connectedAt)
+		a.mu.Unlock()
+		return since < graceAfter
+	}
+	return time.Since(h.Last) < staleAfter
+}
+
+// backoff returns the delay before the given reconnect attempt (1-based),
+// growing exponentially and capped at backoffMax.
+func backoff(attempt int) time.Duration {
+	d := backoffBase
+	for i := 1; i < attempt && d < backoffMax; i++ {
+		d *= 2
+	}
+	if d > backoffMax {
+		d = backoffMax
+	}
+	return d
+}
+
+func sleepCtx(ctx context.Context, d time.Duration) bool {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-t.C:
+		return true
+	}
+}
 
 func (a *App) isDryRun() bool {
 	a.mu.Lock()

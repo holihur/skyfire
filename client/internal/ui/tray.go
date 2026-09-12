@@ -3,14 +3,20 @@
 package ui
 
 import (
+	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
+	"time"
 
 	"fyne.io/systray"
 
 	"github.com/holihur/skyfire/client/internal/app"
 	"github.com/holihur/skyfire/client/internal/config"
 )
+
+// trayRefreshInterval is how often the tray re-reads transfer counters.
+const trayRefreshInterval = 2 * time.Second
 
 // Run shows a system tray icon and blocks until the user quits.
 func Run(c Controller, log *slog.Logger) error {
@@ -23,6 +29,8 @@ func onReady(c Controller, log *slog.Logger) {
 
 	mStatus := systray.AddMenuItem("Disconnected", "Tunnel status")
 	mStatus.Disable()
+	mTraffic := systray.AddMenuItem("Traffic: —", "Traffic through the tunnel")
+	mTraffic.Disable()
 	systray.AddSeparator()
 	mToggle := systray.AddMenuItem("Connect", "Connect or disconnect the tunnel")
 	mSet := systray.AddMenuItem("Set connection string…", "Paste the connection string from the Skyfire console")
@@ -30,11 +38,34 @@ func onReady(c Controller, log *slog.Logger) {
 	systray.AddSeparator()
 	mQuit := systray.AddMenuItem("Quit", "Quit Skyfire")
 
-	apply := func(s app.Status, msg string) {
+	var (
+		stateMu sync.Mutex
+		cur     = app.Disconnected
+		curMsg  string
+	)
+	refresh := func() {
+		stateMu.Lock()
+		s, msg := cur, curMsg
+		stateMu.Unlock()
+
 		systray.SetIcon(iconFor(s))
 		tip := "Skyfire: " + s.String()
 		if msg != "" {
 			tip += " — " + msg
+		}
+		if s == app.Connected {
+			tr := c.Traffic()
+			if tr.Active {
+				tip += fmt.Sprintf(" · ↓%s ↑%s", fmtBytes(tr.Rx), fmtBytes(tr.Tx))
+				if tr.RxRate > 0 || tr.TxRate > 0 {
+					tip += fmt.Sprintf(" (↓%s ↑%s)", fmtRate(tr.RxRate), fmtRate(tr.TxRate))
+				}
+				mTraffic.SetTitle(fmt.Sprintf("↓ %s   ↑ %s", fmtBytes(tr.Rx), fmtBytes(tr.Tx)))
+			} else {
+				mTraffic.SetTitle("Traffic: —")
+			}
+		} else {
+			mTraffic.SetTitle("Traffic: —")
 		}
 		systray.SetTooltip(tip)
 		mStatus.SetTitle(s.String())
@@ -44,11 +75,27 @@ func onReady(c Controller, log *slog.Logger) {
 			mToggle.SetTitle("Connect")
 		}
 	}
-	c.SetOnChange(apply)
+	c.SetOnChange(func(s app.Status, msg string) {
+		stateMu.Lock()
+		cur, curMsg = s, msg
+		stateMu.Unlock()
+		refresh()
+	})
 	{
 		s, msg := c.Status()
-		apply(s, msg)
+		stateMu.Lock()
+		cur, curMsg = s, msg
+		stateMu.Unlock()
 	}
+	refresh()
+
+	go func() {
+		t := time.NewTicker(trayRefreshInterval)
+		defer t.Stop()
+		for range t.C {
+			refresh()
+		}
+	}()
 
 	// First run: ask for the connection string and connect right away.
 	if c.ConnectString() == "" {
