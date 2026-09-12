@@ -194,3 +194,43 @@ func defaultGateway() string {
 	}
 	return ""
 }
+
+// addTunnelPrefix installs a route for pre through the tunnel device.
+func addTunnelPrefix(dev string, pre netip.Prefix) error {
+	if pre.Addr().Is4() {
+		return routeCmd("-n", "add", "-net", pre.String(), "-interface", dev)
+	}
+	return routeCmd("-n", "add", "-inet6", "-net", pre.String(), "-interface", dev)
+}
+
+// delTunnelPrefix removes a route previously installed by addTunnelPrefix.
+func delTunnelPrefix(_ string, pre netip.Prefix) {
+	if pre.Addr().Is4() {
+		_ = routeCmd("-n", "delete", "-net", pre.String())
+		return
+	}
+	_ = routeCmd("-n", "delete", "-inet6", "-net", pre.String())
+}
+
+// currentDNSServers returns the system's DNS server IPs, used as the upstream
+// for the split-DNS proxy before the system resolver is pointed at it.
+func currentDNSServers() []string {
+	out, err := exec.Command("scutil", "--dns").Output()
+	if err != nil {
+		return nil
+	}
+	var ips []string
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "nameserver[") {
+			continue
+		}
+		if i := strings.Index(line, ":"); i >= 0 {
+			f := strings.TrimSpace(line[i+1:])
+			if _, err := netip.ParseAddr(f); err == nil {
+				ips = append(ips, f)
+			}
+		}
+	}
+	return ips
+}

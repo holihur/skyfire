@@ -21,6 +21,7 @@ func main() {
 	var (
 		connect     = flag.String("connect", "", "Skyfire connection string (peer config URL with token); saved and connected immediately (tray starts connected)")
 		confPath    = flag.String("conf", "", "use a local WireGuard .conf file instead of fetching from the server")
+		whitelist   = flag.String("whitelist", "", "comma-separated domains/CIDRs routed through the tunnel (empty = full tunnel); saved and applied on connect")
 		dryRun      = flag.Bool("dry-run", false, "validate the configuration without creating a tunnel")
 		cliMode     = flag.Bool("cli", false, "run in the terminal instead of the system tray")
 		verbose     = flag.Bool("verbose", false, "enable debug logging")
@@ -50,6 +51,13 @@ func main() {
 			os.Exit(1)
 		}
 		log.Info("connection string saved")
+	}
+	if flagWasSet("whitelist") {
+		if err := store.SetWhitelist(config.ParseWhitelist(*whitelist)); err != nil {
+			log.Error("save whitelist", "error", err)
+			os.Exit(1)
+		}
+		log.Info("whitelist saved", "entries", store.Whitelist())
 	}
 
 	a := app.New(store, log)
@@ -87,4 +95,15 @@ func main() {
 		log.Error("client stopped", "error", err)
 		os.Exit(1)
 	}
+}
+
+// flagWasSet reports whether the named flag was provided on the command line.
+func flagWasSet(name string) bool {
+	found := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			found = true
+		}
+	})
+	return found
 }

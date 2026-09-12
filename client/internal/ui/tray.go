@@ -4,10 +4,12 @@ package ui
 
 import (
 	"log/slog"
+	"strings"
 
 	"fyne.io/systray"
 
 	"github.com/holihur/skyfire/client/internal/app"
+	"github.com/holihur/skyfire/client/internal/config"
 )
 
 // Run shows a system tray icon and blocks until the user quits.
@@ -24,6 +26,7 @@ func onReady(c Controller, log *slog.Logger) {
 	systray.AddSeparator()
 	mToggle := systray.AddMenuItem("Connect", "Connect or disconnect the tunnel")
 	mSet := systray.AddMenuItem("Set connection string…", "Paste the connection string from the Skyfire console")
+	mWhite := systray.AddMenuItem("Set domain whitelist…", "Domains/CIDRs routed through the tunnel; empty = full tunnel")
 	systray.AddSeparator()
 	mQuit := systray.AddMenuItem("Quit", "Quit Skyfire")
 
@@ -76,6 +79,8 @@ func onReady(c Controller, log *slog.Logger) {
 				}
 			case <-mSet.ClickedCh:
 				_ = askConnectionString(c, log)
+			case <-mWhite.ClickedCh:
+				_ = askWhitelist(c, log)
 			case <-mQuit.ClickedCh:
 				_ = c.Disconnect()
 				systray.Quit()
@@ -98,5 +103,23 @@ func askConnectionString(c Controller, log *slog.Logger) error {
 		return err
 	}
 	log.Info("connection string saved")
+	return nil
+}
+
+func askWhitelist(c Controller, log *slog.Logger) error {
+	v, err := PromptWhitelist(strings.Join(c.Whitelist(), ", "))
+	if err != nil {
+		return err
+	}
+	list := config.ParseWhitelist(v)
+	if err := c.SetWhitelist(list); err != nil {
+		log.Warn("invalid whitelist", "error", err)
+		return err
+	}
+	if len(list) == 0 {
+		log.Info("whitelist cleared (full tunnel)")
+	} else {
+		log.Info("whitelist saved", "entries", list)
+	}
 	return nil
 }

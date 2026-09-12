@@ -94,6 +94,12 @@ func (a *App) ConnectString() string { return a.store.Connect() }
 // SetConnectString validates and saves the connection string.
 func (a *App) SetConnectString(v string) error { return a.store.SetConnect(v) }
 
+// Whitelist returns the saved domain/CIDR whitelist.
+func (a *App) Whitelist() []string { return a.store.Whitelist() }
+
+// SetWhitelist validates and saves the whitelist.
+func (a *App) SetWhitelist(v []string) error { return a.store.SetWhitelist(v) }
+
 // SetAutoConnect requests that the tunnel be brought up automatically once the
 // UI is ready (used when the client is launched with -connect).
 func (a *App) SetAutoConnect(v bool) {
@@ -131,6 +137,7 @@ func (a *App) Connect() error {
 			"peers", len(c.Peers),
 			"fullTunnelV4", v4,
 			"fullTunnelV6", v6,
+			"whitelist", a.store.Whitelist(),
 		)
 		for _, p := range c.Peers {
 			a.log.Info("dry-run: peer", "endpoint", p.Endpoint, "allowedIPs", p.AllowedIPs, "keepalive", p.Keepalive)
@@ -138,7 +145,7 @@ func (a *App) Connect() error {
 		a.setStatus(Connected, "dry-run")
 		return nil
 	}
-	if err := a.tun.Up(text); err != nil {
+	if err := a.tun.Up(text, a.store.Whitelist()); err != nil {
 		a.setStatus(Error, err.Error())
 		return err
 	}

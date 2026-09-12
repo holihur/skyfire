@@ -26,3 +26,21 @@ func PromptConnectionString(def string) (string, error) {
 	}
 	return line, nil
 }
+
+// PromptWhitelist reads the domain/CIDR whitelist from the terminal.
+func PromptWhitelist(def string) (string, error) {
+	fmt.Fprint(os.Stderr, "Whitelist (comma separated; empty = full tunnel)")
+	if def != "" {
+		fmt.Fprintf(os.Stderr, " [%s]", def)
+	}
+	fmt.Fprint(os.Stderr, ": ")
+	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	if err != nil && line == "" {
+		return "", err
+	}
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return def, nil
+	}
+	return line, nil
+}

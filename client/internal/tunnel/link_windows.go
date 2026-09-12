@@ -74,6 +74,9 @@ func unconfigureDNS(dev string, dns []string) {
 // routes are removed when the Wintun device is closed and DNS is restored by
 // unconfigureDNS.
 func unconfigureLink(_ string, c *Conf) {
+	if c == nil || c.WhitelistMode() {
+		return
+	}
 	removeEndpointExceptions(c)
 }
 
@@ -114,6 +117,11 @@ func addAddresses(dev string, addresses []string) error {
 }
 
 func addRoutes(dev string, c *Conf) error {
+	// Split-by-domain mode: routes are maintained by the whitelist router
+	// instead of the peer's AllowedIPs.
+	if c.WhitelistMode() {
+		return nil
+	}
 	// Pin each endpoint to the physical path BEFORE installing the full-tunnel
 	// /1 routes; otherwise those routes capture the tunnel's own transport and
 	// create a routing loop that cuts the machine off.
@@ -263,4 +271,41 @@ func setDNS(dev string, dns []string) error {
 		}
 	}
 	return nil
+}
+
+// addTunnelPrefix installs a route for pre through the tunnel device.
+func addTunnelPrefix(dev string, pre netip.Prefix) error {
+	fam := "ipv4"
+	if !pre.Addr().Is4() {
+		fam = "ipv6"
+	}
+	return ignoreExists(netsh("interface", fam, "add", "route", "prefix="+pre.String(), "interface="+dev))
+}
+
+// delTunnelPrefix removes a route previously installed by addTunnelPrefix.
+func delTunnelPrefix(dev string, pre netip.Prefix) {
+	fam := "ipv4"
+	if !pre.Addr().Is4() {
+		fam = "ipv6"
+	}
+	_ = netsh("interface", fam, "delete", "route", "prefix="+pre.String(), "interface="+dev)
+}
+
+// currentDNSServers returns the system's DNS server IPs, used as the upstream
+// for the split-DNS proxy before the system resolver is pointed at it.
+func currentDNSServers() []string {
+	out, err := exec.Command("powershell", "-NoProfile", "-Command",
+		"(Get-DnsClientServerAddress -AddressFamily IPv4,IPv6 | Where-Object { $_.ServerAddresses } | Select-Object -ExpandProperty ServerAddresses)").Output()
+	if err != nil {
+		return nil
+	}
+	var ips []string
+	for _, line := range strings.Split(string(out), "\n") {
+		for _, f := range strings.Fields(line) {
+			if _, err := netip.ParseAddr(f); err == nil {
+				ips = append(ips, f)
+			}
+		}
+	}
+	return ips
 }

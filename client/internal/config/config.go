@@ -21,6 +21,10 @@ type State struct {
 	// Connect is the full token-scoped config URL, e.g.
 	// https://vpn.example.com:51821/api/p/<token>/wg.conf
 	Connect string `json:"connect,omitempty"`
+	// Whitelist lists hostnames routed through the tunnel when split-by-domain
+	// mode is active. An empty list means "route per the server config"
+	// (typically a full tunnel).
+	Whitelist []string `json:"whitelist,omitempty"`
 }
 
 // ErrNoConnect reports a missing connection string.
@@ -80,6 +84,51 @@ func (s *Store) SetConnect(conn string) error {
 	st := s.st
 	s.mu.Unlock()
 	return s.save(st)
+}
+
+// Whitelist returns the persisted domain whitelist (never nil).
+func (s *Store) Whitelist() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.st.Whitelist...)
+}
+
+// SetWhitelist persists a domain whitelist. Entries are trimmed, deduplicated
+// and empty entries dropped. An empty/nil list clears the whitelist.
+func (s *Store) SetWhitelist(domains []string) error {
+	s.mu.Lock()
+	s.st.Whitelist = NormalizeWhitelist(domains)
+	st := s.st
+	s.mu.Unlock()
+	return s.save(st)
+}
+
+// NormalizeWhitelist trims, lowercases, drops empty entries and deduplicates
+// a whitelist. Entries may be CIDR prefixes (10.0.0.0/8), exact hostnames
+// (api.example.com) or wildcards (*.example.com).
+func NormalizeWhitelist(domains []string) []string {
+	seen := make(map[string]struct{})
+	out := make([]string, 0, len(domains))
+	for _, d := range domains {
+		d = strings.TrimSpace(strings.ToLower(d))
+		d = strings.TrimSuffix(d, ".")
+		if d == "" {
+			continue
+		}
+		if _, ok := seen[d]; ok {
+			continue
+		}
+		seen[d] = struct{}{}
+		out = append(out, d)
+	}
+	return out
+}
+
+// ParseWhitelist splits a comma/newline separated string into entries.
+func ParseWhitelist(s string) []string {
+	return strings.FieldsFunc(s, func(r rune) bool {
+		return r == ',' || r == '\n' || r == ';' || r == ' ' || r == '\t' || r == '\r'
+	})
 }
 
 func (s *Store) save(st State) error {

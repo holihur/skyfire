@@ -26,11 +26,12 @@ const routeTable = 51821
 
 // Tunnel owns a wireguard-go device and its TUN interface.
 type Tunnel struct {
-	mu   sync.Mutex
-	dev  *device.Device
-	name string
-	conf *Conf
-	log  *slog.Logger
+	mu     sync.Mutex
+	dev    *device.Device
+	name   string
+	conf   *Conf
+	router *whitelistRouter
+	log    *slog.Logger
 }
 
 // New creates an idle tunnel.
@@ -41,8 +42,11 @@ func New(log *slog.Logger) *Tunnel {
 	return &Tunnel{log: log}
 }
 
-// Up parses text, creates the TUN interface and brings WireGuard up.
-func (t *Tunnel) Up(text string) error {
+// Up parses text, creates the TUN interface and brings WireGuard up. When
+// whitelist is non-empty the tunnel enters split-by-domain mode: only the
+// listed CIDRs/hostnames are routed through the tunnel and the system resolver
+// is pointed at a local split-DNS proxy.
+func (t *Tunnel) Up(text string, whitelist []string) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.dev != nil {
@@ -53,6 +57,7 @@ func (t *Tunnel) Up(text string) error {
 	if err != nil {
 		return err
 	}
+	c.Whitelist = whitelist
 	uapi, err := c.UAPI()
 	if err != nil {
 		return err
@@ -85,7 +90,12 @@ func (t *Tunnel) Up(text string) error {
 		dev.Close()
 		return fmt.Errorf("configure %s: %w", realName, err)
 	}
-	if len(c.DNS) > 0 {
+	if c.WhitelistMode() {
+		router := newWhitelistRouter(realName, c, t.log)
+		router.start()
+		t.router = router
+	}
+	if len(c.DNS) > 0 && !c.WhitelistMode() {
 		if err := configureDNS(realName, c.DNS); err != nil {
 			t.log.Warn("apply DNS failed", "interface", realName, "servers", c.DNS, "error", err)
 		} else {
@@ -107,8 +117,14 @@ func (t *Tunnel) Down() error {
 	if t.dev == nil {
 		return nil
 	}
+	if t.router != nil {
+		t.router.stop()
+		t.router = nil
+	}
 	if t.conf != nil {
-		unconfigureDNS(t.name, t.conf.DNS)
+		if !t.conf.WhitelistMode() {
+			unconfigureDNS(t.name, t.conf.DNS)
+		}
 		unconfigureLink(t.name, t.conf)
 	}
 	if err := t.dev.Down(); err != nil {

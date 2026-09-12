@@ -51,6 +51,12 @@ func configureLink(dev string, c *Conf) error {
 		return err
 	}
 
+	// Split-by-domain mode: routes are maintained by the whitelist router
+	// instead of the peer's AllowedIPs.
+	if c.WhitelistMode() {
+		return nil
+	}
+
 	v4, v6 := c.HasDefaultRoutes()
 	for _, p := range c.Peers {
 		for _, a := range p.AllowedIPs {
@@ -94,7 +100,7 @@ func configureLink(dev string, c *Conf) error {
 }
 
 func unconfigureLink(dev string, c *Conf) {
-	if c == nil {
+	if c == nil || c.WhitelistMode() {
 		return
 	}
 	v4, v6 := c.HasDefaultRoutes()
@@ -218,4 +224,55 @@ func runCmd(name string, args ...string) error {
 		return fmt.Errorf("%s %s: %w (%s)", name, strings.Join(args, " "), err, strings.TrimSpace(string(out)))
 	}
 	return nil
+}
+
+// addTunnelPrefix installs a route for pre through the tunnel device.
+func addTunnelPrefix(dev string, pre netip.Prefix) error {
+	if pre.Addr().Is4() {
+		return ipignore("route", "add", pre.String(), "dev", dev)
+	}
+	return ipignore("-6", "route", "add", pre.String(), "dev", dev)
+}
+
+// delTunnelPrefix removes a route previously installed by addTunnelPrefix.
+func delTunnelPrefix(dev string, pre netip.Prefix) {
+	if pre.Addr().Is4() {
+		_ = iprun("route", "del", pre.String(), "dev", dev)
+		return
+	}
+	_ = iprun("-6", "route", "del", pre.String(), "dev", dev)
+}
+
+// currentDNSServers returns the system's DNS server IPs, used as the upstream
+// for the split-DNS proxy before the system resolver is pointed at it.
+func currentDNSServers() []string {
+	// resolvectl reports the real per-link upstreams (resolv.conf may just be
+	// the 127.0.0.53 stub, which would loop back into our own proxy).
+	if out, err := exec.Command("resolvectl", "dns").Output(); err == nil {
+		var ips []string
+		for _, line := range strings.Split(string(out), "\n") {
+			for _, f := range strings.Fields(line) {
+				if _, err := netip.ParseAddr(f); err == nil {
+					ips = append(ips, f)
+				}
+			}
+		}
+		if len(ips) > 0 {
+			return ips
+		}
+	}
+	data, err := os.ReadFile("/etc/resolv.conf")
+	if err != nil {
+		return nil
+	}
+	var ips []string
+	for _, line := range strings.Split(string(data), "\n") {
+		f := strings.Fields(line)
+		if len(f) >= 2 && f[0] == "nameserver" {
+			if _, err := netip.ParseAddr(f[1]); err == nil {
+				ips = append(ips, f[1])
+			}
+		}
+	}
+	return ips
 }

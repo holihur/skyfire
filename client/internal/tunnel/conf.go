@@ -18,6 +18,9 @@ type Conf struct {
 	DNS        []string
 	MTU        int
 	Peers      []Peer
+	// Whitelist lists hostnames routed through the tunnel in split-by-domain
+	// mode. It is set programmatically (not parsed from the config file).
+	Whitelist []string
 }
 
 // Peer is a parsed [Peer] section.
@@ -124,6 +127,10 @@ func (c *Conf) HasDefaultRoutes() (v4, v6 bool) {
 	}
 	return v4, v6
 }
+
+// WhitelistMode reports whether the client routes only whitelisted hostnames
+// through the tunnel (split-by-domain), ignoring the peer's AllowedIPs.
+func (c *Conf) WhitelistMode() bool { return len(c.Whitelist) > 0 }
 
 // EndpointIPs resolves every peer endpoint (host:port, [v6]:port or bare
 // host) to its IP addresses. Hostnames go through the system resolver and
