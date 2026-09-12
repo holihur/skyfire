@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/components/ui/use-toast'
 import { api, openDownload } from '../lib/api'
+import { copyText } from '../lib/clipboard'
 import { useI18n } from '../i18n'
 import { fmtBytes, fmtAge, shortKey } from '../lib/format'
 import type { Peer } from '../lib/types'
@@ -43,10 +44,9 @@ export default function PeerDetailDialog({ open, onOpenChange, ifaceName, peer, 
   const copyConfig = async () => {
     const text = config || await loadConfig()
     if (!text) return
-    try {
-      await navigator.clipboard.writeText(text)
+    if (await copyText(text)) {
       toast({ description: t('peerDetail.confCopied'), variant: 'success' })
-    } catch {
+    } else {
       toast({ description: t('common.clipboardUnavailable'), variant: 'destructive' })
     }
   }
@@ -62,19 +62,17 @@ export default function PeerDetailDialog({ open, onOpenChange, ifaceName, peer, 
       : `skyfire-client -connect '${connectString}'`
 
   const copyConnectString = async () => {
-    try {
-      await navigator.clipboard.writeText(connectString)
+    if (await copyText(connectString)) {
       toast({ description: t('peerDetail.connectCopied'), variant: 'success' })
-    } catch {
+    } else {
       toast({ description: t('common.clipboardUnavailable'), variant: 'destructive' })
     }
   }
 
   const copyCommand = async () => {
-    try {
-      await navigator.clipboard.writeText(connectCommand)
+    if (await copyText(connectCommand)) {
       toast({ description: t('peerDetail.commandCopied'), variant: 'success' })
-    } catch {
+    } else {
       toast({ description: t('common.clipboardUnavailable'), variant: 'destructive' })
     }
   }

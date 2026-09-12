@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/table'
 import { useToast } from '@/components/ui/use-toast'
 import { api, openDownload } from '../lib/api'
+import { copyText } from '../lib/clipboard'
 import { useI18n } from '../i18n'
 import { fmtBytes, fmtAge, shortKey, ipOf } from '../lib/format'
 import StatusBadge from '../components/StatusBadge'
@@ -129,10 +130,9 @@ export default function InterfaceDetail() {
   }
 
   const copy = async (text: string, label: string) => {
-    try {
-      await navigator.clipboard.writeText(text)
+    if (await copyText(text)) {
       toast({ description: t('common.copied', { label }), variant: 'success' })
-    } catch {
+    } else {
       toast({ description: t('common.clipboardUnavailable'), variant: 'destructive' })
     }
   }

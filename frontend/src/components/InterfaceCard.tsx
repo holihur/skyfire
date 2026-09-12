@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useToast } from '@/components/ui/use-toast'
 import { api, openDownload } from '../lib/api'
+import { copyText } from '../lib/clipboard'
 import { useI18n } from '../i18n'
 import { fmtBytes, shortKey } from '../lib/format'
 import StatusBadge from './StatusBadge'
@@ -81,10 +82,9 @@ export default function InterfaceCard({ iface, onDeleted, onEdited }: Props) {
   }
 
   const copyPubkey = async () => {
-    try {
-      await navigator.clipboard.writeText(iface.publicKey)
+    if (await copyText(iface.publicKey)) {
       toast({ description: t('iface.copyPubkey'), variant: 'success' })
-    } catch {
+    } else {
       toast({ description: t('common.clipboardUnavailable'), variant: 'destructive' })
     }
   }
@@ -92,8 +92,11 @@ export default function InterfaceCard({ iface, onDeleted, onEdited }: Props) {
   const copyWgQuick = async () => {
     try {
       const cfg = await api.getText(api.serverConfigUrl(iface.name))
-      await navigator.clipboard.writeText(cfg)
-      toast({ description: t('iface.copySrvConf'), variant: 'success' })
+      if (await copyText(cfg)) {
+        toast({ description: t('iface.copySrvConf'), variant: 'success' })
+      } else {
+        toast({ description: t('common.clipboardUnavailable'), variant: 'destructive' })
+      }
     } catch (err) {
       toast({ description: String(err), variant: 'destructive' })
     }

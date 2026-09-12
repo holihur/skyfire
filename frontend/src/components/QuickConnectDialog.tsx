@@ -4,6 +4,7 @@ import Dialog from './Dialog'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/use-toast'
 import { api } from '../lib/api'
+import { copyText } from '../lib/clipboard'
 import { useI18n } from '../i18n'
 import type { Peer, WireGuardInterface } from '../lib/types'
 
@@ -66,10 +67,9 @@ export default function QuickConnectDialog({
       : `skyfire-client -connect '${connectString}'`
 
   const copyCommand = async () => {
-    try {
-      await navigator.clipboard.writeText(command)
+    if (await copyText(command)) {
       toast({ description: t('peerDetail.commandCopied'), variant: 'success' })
-    } catch {
+    } else {
       toast({ description: t('common.clipboardUnavailable'), variant: 'destructive' })
     }
   }
