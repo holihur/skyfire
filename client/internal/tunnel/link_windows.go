@@ -186,6 +186,9 @@ func addEndpointExceptions(c *Conf) error {
 	}
 	for _, ip := range ips {
 		if ip.Is4() && gw != "" {
+			// Clear any stale route from a previous run (possibly via a
+			// different gateway after a network change) before pinning it.
+			_ = exec.Command("route", "delete", ip.String()).Run()
 			_ = exec.Command("route", "add", ip.String(), "mask", "255.255.255.255", gw, "metric", "1").Run()
 		}
 	}

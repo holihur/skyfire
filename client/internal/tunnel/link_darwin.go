@@ -164,6 +164,8 @@ func addEndpointExceptions(c *Conf) error {
 		return fmt.Errorf("no default gateway found for the endpoint exception")
 	}
 	for _, ip := range ips {
+		// Clear any stale route from a previous run before pinning it.
+		_ = routeCmd("-n", "delete", "-host", ip.String())
 		_ = routeCmd("-n", "add", "-host", ip.String(), gw)
 	}
 	return nil
