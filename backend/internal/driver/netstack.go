@@ -131,6 +131,9 @@ func (n *Netstack) Configure(name string, cfg Config) error {
 		if err := d.dev.IpcSet(text); err != nil {
 			return fmt.Errorf("configure %s: %w", name, err)
 		}
+		if d.tun != nil {
+			d.tun.forwarding.Store(cfg.Forwarding)
+		}
 	}
 	d.last = cfg
 	return nil
@@ -169,7 +172,7 @@ func (n *Netstack) ensure(name string) (*nsDevice, error) {
 	if mtu == 0 {
 		mtu = 1420
 	}
-	t, err := openNSStack(d.addr, mtu)
+	t, err := openNSStack(d.addr, mtu, d.last.Forwarding)
 	if err != nil {
 		return nil, fmt.Errorf("netstack %s: %w", name, err)
 	}
@@ -268,6 +271,7 @@ type nsTun struct {
 	incomingPacket chan *buffer.View
 	localAddrs     []netip.Addr
 	peerNets       []netip.Prefix
+	forwarding     atomic.Bool
 	closeOnce      sync.Once
 	closed         atomic.Bool
 }
@@ -305,7 +309,7 @@ func peerNetsOf(peers []PeerSpec) []netip.Prefix {
 	return out
 }
 
-func openNSStack(prefixes []string, mtu int) (*nsTun, error) {
+func openNSStack(prefixes []string, mtu int, forwarding bool) (*nsTun, error) {
 	addrs := make([]netip.Addr, 0, len(prefixes))
 	hasV4, hasV6 := false, false
 	for _, p := range prefixes {
@@ -350,6 +354,7 @@ func openNSStack(prefixes []string, mtu int) (*nsTun, error) {
 		incomingPacket: make(chan *buffer.View, 512),
 		localAddrs:     addrs,
 	}
+	t.forwarding.Store(forwarding)
 	t.notifyHandle = t.ep.AddNotify(t)
 	if err := st.CreateNIC(1, t.ep); err != nil {
 		st.Close()
@@ -538,6 +543,13 @@ func (t *nsTun) handleTCP(fr *tcp.ForwarderRequest) {
 			fr.Complete(true)
 			return
 		}
+		// When forwarding is disabled only traffic to the server's own
+		// addresses (e.g. the tunnel DNS at the interface address) is
+		// allowed; internet transit is rejected.
+		if !t.forwarding.Load() && !t.isLocal(dst.Addr()) {
+			fr.Complete(true)
+			return
+		}
 		raddr := &net.TCPAddr{IP: net.ParseIP(t.dialHost(dst.Addr())), Port: int(dst.Port())}
 		remote, err := net.DialTCP("tcp", nil, raddr)
 		if err != nil {
@@ -567,6 +579,11 @@ func (t *nsTun) handleUDP(r *udp.ForwarderRequest) {
 	go func() {
 		dst, ok := idDst(r.ID())
 		if !ok {
+			return
+		}
+		// Drop transit datagrams when forwarding is disabled; local
+		// destinations (tunnel DNS, server API) stay reachable.
+		if !t.forwarding.Load() && !t.isLocal(dst.Addr()) {
 			return
 		}
 		sock, err := net.DialUDP("udp", nil, udpDial(t, dst.Addr(), dst.Port()))

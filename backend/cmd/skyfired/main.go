@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"skyfire/internal/api"
+	"skyfire/internal/dnsproxy"
 	"skyfire/internal/driver"
 	"skyfire/internal/manager"
 	"skyfire/internal/store"
@@ -54,6 +55,8 @@ func main() {
 		demo       = flag.Bool("demo", false, "start with a mock driver and sample data (no system changes)")
 		verbose    = flag.Bool("verbose", false, "debug logging")
 		showVer    = flag.Bool("version", false, "print the version and exit")
+		dnsAddr    = flag.String("dns", "127.0.0.1:53", "listen address for the tunnel DNS forwarder (empty disables); netstack relays tunnel DNS to loopback")
+		dnsUp      = flag.String("dns-upstream", "8.8.8.8:53,1.1.1.1:53", "comma-separated upstream DNS resolvers for the forwarder")
 	)
 	flag.Usage = func() {
 		out := flag.CommandLine.Output()
@@ -127,6 +130,21 @@ func main() {
 	} else {
 		log.Info("auth enabled (use 'Authorization: Bearer <token>' header)")
 	}
+
+	// Tunnel DNS forwarder: clients point DNS at the server's tunnel address,
+	// netstack relays it to loopback, and this forwarder resolves it through
+	// clean upstreams. Skipped in dry-run/demo and when disabled.
+	var dnsProxy *dnsproxy.Server
+	if !*dryRun && *dnsAddr != "" {
+		if proxy, err := dnsproxy.New(splitDNSUpstreams(*dnsUp), log); err != nil {
+			log.Warn("dns proxy config invalid", "error", err)
+		} else if err := proxy.Start(*dnsAddr); err != nil {
+			log.Warn("dns proxy failed to start", "addr", *dnsAddr, "error", err)
+		} else {
+			dnsProxy = proxy
+		}
+	}
+
 	log.Info("skyfired starting",
 		"version", version,
 		"driver", drv.Name(),
@@ -180,6 +198,20 @@ func main() {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_ = httpSrv.Shutdown(shutdownCtx)
+	if dnsProxy != nil {
+		dnsProxy.Close()
+	}
+}
+
+// splitDNSUpstreams parses the comma-separated -dns-upstream flag.
+func splitDNSUpstreams(s string) []string {
+	var out []string
+	for _, part := range strings.Split(s, ",") {
+		if p := strings.TrimSpace(part); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func buildDriver(name string) (driver.Driver, error) {

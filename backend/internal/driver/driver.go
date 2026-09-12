@@ -13,8 +13,11 @@ type Config struct {
 	// FirewallMark, when > 0, tags the device's own packets (endpoint UDP
 	// traffic) so the full-tunnel policy routing rules can exclude them and
 	// avoid a routing loop. Required alongside AddDefaultRoutes.
-	FirewallMark int        `json:"firewallMark,omitempty"`
-	Peers        []PeerSpec `json:"peers"`
+	FirewallMark int `json:"firewallMark,omitempty"`
+	// Forwarding allows transit traffic (clients reaching external networks
+	// through this device). When false the driver drops non-local transit.
+	Forwarding bool       `json:"forwarding"`
+	Peers      []PeerSpec `json:"peers"`
 }
 
 // PeerSpec is a single peer as applied to the device.

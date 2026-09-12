@@ -15,6 +15,16 @@ type Settings struct {
 	// (host or host:port). The listen port is appended when omitted. It is
 	// embedded into client configuration files as [Peer] Endpoint.
 	PublicEndpoint string `json:"publicEndpoint"`
+	// Forwarding controls whether tunnel clients may reach external networks
+	// through this server (internet transit / NAT). nil means enabled, which
+	// preserves the historical behavior.
+	Forwarding *bool `json:"forwarding,omitempty"`
+}
+
+// ForwardingEnabled reports whether client traffic is forwarded to external
+// networks. An unset value defaults to true.
+func (s Settings) ForwardingEnabled() bool {
+	return s.Forwarding == nil || *s.Forwarding
 }
 
 // Interface describes a single WireGuard interface.

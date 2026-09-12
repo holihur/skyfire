@@ -170,6 +170,8 @@ Restart=on-failure
 | `-username` | `admin` | 单用户 Web 登录名 |
 | `-password` | 自动生成 | 单用户 Web 登录密码 |
 | `-static` | 空 | 指定前端目录，覆盖内嵌 UI |
+| `-dns` | `127.0.0.1:53` | 隧道 DNS 转发器监听地址（空 = 禁用；`-dry-run`/`-demo` 下自动禁用） |
+| `-dns-upstream` | `8.8.8.8:53,1.1.1.1:53` | 转发器上游 DNS（逗号分隔，逐个尝试） |
 | `-demo` | `false` | mock 驱动 + 示例数据 + `dry-run` |
 | `-verbose` | `false` | debug 日志 |
 | `-version` | `false` | 打印版本后退出 |
@@ -203,6 +205,33 @@ sudo skyfired update -restart=false
 
 > 设置 `GITHUB_TOKEN` 环境变量可提高 GitHub API 速率限制。
 > 源码构建的二进制版本为 `dev`，无法与发布版本比较，会直接安装最新版。
+
+### 4.2 隧道 DNS 转发器（-dns / -dns-upstream）
+
+skyfired 内置一个**无解析的透明 DNS 转发器**：监听 `:53`（UDP+TCP），把客户端的
+DNS 请求原样转发到 `-dns-upstream` 指定的干净上游（默认 `8.8.8.8`、`1.1.1.1`）。
+
+工作机制：
+
+- 客户端 `wg.conf` 的 `DNS` 默认为**服务器隧道地址**（接口 `addresses` 的第一个
+  IPv4，如 `10.42.0.1`）；每 Peer 可在 `dns` 字段覆盖。
+- 客户端把 DNS 发到 `10.42.0.1:53`；netstack 驱动会自动把它转到本机回环，命中
+  转发器（`userspace`/`kernel` 驱动走系统栈，同样可达）。
+- 转发器通过干净上游解析，**绕过客户端本地被污染的 DNS**（如 GFW 污染），且对
+  全隧道、分隧道都有效。
+
+```bash
+# 默认：监听 :53，转发到 8.8.8.8 / 1.1.1.1
+sudo skyfired -config /etc/skyfire/config.json -addr :51821
+
+# 自定义上游 / 端口 / 禁用
+sudo skyfired -dns :53 -dns-upstream 1.1.1.1:53,9.9.9.9:53 ...
+sudo skyfired -dns '' ...   # 禁用转发器
+```
+
+> 监听 `:53` 需要 root；端口被占用时仅打 warn，不会退出。客户端连接时会应用
+> `wg.conf` 的 `DNS`（Windows `netsh`、Linux `resolvectl`/`resolvconf`、
+> macOS `scutil`；断开时还原）。
 
 ---
 
@@ -281,6 +310,19 @@ sudo skyfired update -restart=false
 
 > 注意：这是 **WireGuard 监听端口**（接口的 `listenPort`，默认 51820），
 > 不是 Web UI 的 51821。
+
+### 流量转发（forwarding）
+
+`settings.forwarding`（Web UI：设置 → 通用 → 流量转发）控制是否允许隧道客户端
+经本服务器访问外部网络（互联网中转）。默认**开启**（字段缺省即开启）。
+
+- **开启**：客户端可经服务器上网（全隧道 / NAT）。
+- **关闭**：客户端只能访问隧道内地址与服务器本身，公网中转流量被丢弃；隧道
+  DNS（服务器隧道地址）不受影响，仍可用。
+
+改动会**即时热应用**到已启用的接口，无需重连。注意：关闭转发后，从**隧道内**
+用公网 IP 访问 Web API 也会被当作中转而拒绝——请改用服务器隧道地址（如
+`http://10.42.0.1:51821`）或本地/直连方式管理。
 
 ---
 

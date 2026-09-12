@@ -86,7 +86,7 @@ func (m *Manager) applyInterface(iface *store.Interface) error {
 	if err := m.driver.Create(iface.Name, iface.MTU); err != nil {
 		return fmt.Errorf("create %s: %w", iface.Name, err)
 	}
-	if err := m.driver.Configure(iface.Name, toDriverConfig(iface)); err != nil {
+	if err := m.driver.Configure(iface.Name, toDriverConfig(iface, m.store.Settings.ForwardingEnabled())); err != nil {
 		return fmt.Errorf("configure %s: %w", iface.Name, err)
 	}
 	v4, v6 := defaultRouteFamilies(allowedIPs(iface))
@@ -106,13 +106,16 @@ func (m *Manager) applyInterface(iface *store.Interface) error {
 			return fmt.Errorf("up %s: %w", iface.Name, err)
 		}
 		if osStack {
-			if err := driver.EnsureForwarding(); err != nil {
-				m.log.Warn("enable ip forwarding", "iface", iface.Name, "error", err)
+			forwarding := m.store.Settings.ForwardingEnabled()
+			if forwarding {
+				if err := driver.EnsureForwarding(); err != nil {
+					m.log.Warn("enable ip forwarding", "iface", iface.Name, "error", err)
+				}
 			}
 			if err := driver.AddRoutes(iface.Name, allowedIPs(iface)); err != nil {
 				m.log.Warn("install routes", "iface", iface.Name, "error", err)
 			}
-			if v4 || v6 {
+			if (v4 || v6) && forwarding {
 				if err := driver.AddDefaultRoutes(iface.Name, v4, v6); err != nil {
 					m.log.Warn("install default routes", "iface", iface.Name, "error", err)
 				}
@@ -158,10 +161,11 @@ func defaultRouteFamilies(allowed []string) (v4, v6 bool) {
 	return v4, v6
 }
 
-func toDriverConfig(iface *store.Interface) driver.Config {
+func toDriverConfig(iface *store.Interface, forwarding bool) driver.Config {
 	cfg := driver.Config{
 		PrivateKey: iface.PrivateKey,
 		ListenPort: iface.ListenPort,
+		Forwarding: forwarding,
 	}
 	if v4, v6 := defaultRouteFamilies(allowedIPs(iface)); v4 || v6 {
 		cfg.FirewallMark = routeFwMark
@@ -750,12 +754,27 @@ func (m *Manager) ClientConfigByToken(token string) (string, error) {
 	return "", fmt.Errorf("%w: peer", ErrNotFound)
 }
 
-// UpdateSettings saves daemon settings.
+// UpdateSettings saves daemon settings. Toggling traffic forwarding re-applies
+// live interfaces so the change takes effect without a reconnect.
 func (m *Manager) UpdateSettings(s store.Settings) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	forwardingChanged := m.store.Settings.ForwardingEnabled() != s.ForwardingEnabled()
 	m.store.Settings = s
-	return m.persist()
+	if err := m.persist(); err != nil {
+		return err
+	}
+	if forwardingChanged {
+		for _, iface := range m.store.Interfaces {
+			if !iface.Up {
+				continue
+			}
+			if err := m.applyInterface(iface); err != nil {
+				m.log.Warn("re-apply after forwarding change", "iface", iface.Name, "error", err)
+			}
+		}
+	}
+	return nil
 }
 
 // ClientConfig produces a client config file for a peer.

@@ -3,6 +3,7 @@ import Dialog from './Dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/components/ui/use-toast'
 import { api } from '../lib/api'
 import { useI18n } from '../i18n'
@@ -75,6 +76,18 @@ export default function SettingsDialog({
             <p className="mt-1.5 text-xs text-muted-foreground">
               {t('settings.publicEndpointHelp')}
             </p>
+          </div>
+
+          <div className="flex items-center justify-between gap-4">
+            <div className="space-y-0.5">
+              <Label htmlFor="forwarding">{t('settings.forwarding')}</Label>
+              <p className="text-xs text-muted-foreground">{t('settings.forwardingHelp')}</p>
+            </div>
+            <Switch
+              id="forwarding"
+              checked={s.forwarding !== false}
+              onCheckedChange={(v) => setS({ ...s, forwarding: v })}
+            />
           </div>
         </section>
 

@@ -158,6 +158,9 @@ const en = {
   'settings.publicEndpointPh': 'vpn.example.com:51820',
   'settings.publicEndpointHelp':
     'Host and port clients should connect to. If the port is omitted the interface\'s listen port is appended automatically.',
+  'settings.forwarding': 'Traffic forwarding',
+  'settings.forwardingHelp':
+    'Allow tunnel clients to reach external networks (the internet) through this server. Off limits them to the tunnel and the server itself.',
   'settings.section.general': 'General',
   'settings.section.appearance': 'Appearance',
   'settings.theme': 'Theme',
@@ -369,6 +372,9 @@ const zh: Record<string, string> = {
   'settings.publicEndpointPh': 'vpn.example.com:51820',
   'settings.publicEndpointHelp':
     '客户端应连接的主机和端口。若省略端口，将自动附加接口的监听端口。',
+  'settings.forwarding': '流量转发',
+  'settings.forwardingHelp':
+    '允许隧道客户端通过本服务器访问外部网络（互联网）。关闭后客户端只能访问隧道内和服务器本身。',
   'settings.section.general': '通用',
   'settings.section.appearance': '外观',
   'settings.theme': '主题',

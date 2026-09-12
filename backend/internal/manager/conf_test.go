@@ -42,6 +42,27 @@ func TestClientConfig(t *testing.T) {
 	}
 }
 
+func TestClientConfigDefaultDNS(t *testing.T) {
+	p := &store.Peer{
+		Name:       "phone",
+		Address:    "10.42.0.3",
+		PrivateKey: "a",
+		// No explicit DNS: the config must default to the server's tunnel IP.
+	}
+	iface := &store.Interface{
+		Name:       "wg0",
+		PublicKey:  "server-key",
+		Addresses:  []string{"fd00::1/64", "10.42.0.1/24"}, // IPv6 first, IPv4 preferred
+		ListenPort: 51820,
+	}
+	settings := store.Settings{PublicEndpoint: "vpn.example.com"}
+
+	cfg := ClientConfig(settings, iface, p)
+	if !strings.Contains(cfg, "DNS = 10.42.0.1") {
+		t.Fatalf("config missing default tunnel DNS (want IPv4 tunnel host):\n%s", cfg)
+	}
+}
+
 func TestClientEndpointJoinsPort(t *testing.T) {
 	ep := clientEndpoint(store.Settings{PublicEndpoint: "vpn.example.com"}, &store.Interface{ListenPort: 51820})
 	if ep != "vpn.example.com:51820" {

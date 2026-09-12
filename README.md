@@ -13,6 +13,7 @@ WireGuard 可视化配置管理工具：一个守护进程管理多个 WireGuard
 - 客户端配置下载（.conf 文本）+ 二维码图片
 - 桌面客户端（单文件 + 系统托盘）凭 Peer 令牌一键连接
 - 实时状态：连接状态、最后一次握手、收发流量
+- 服务器内置 DNS 转发（客户端默认经隧道使用干净解析）+ 全局流量转发开关
 - 单用户密码登录（Session Cookie）+ 可选 Bearer Token
 - 单一可执行文件（Web UI 内嵌）
 
@@ -98,9 +99,9 @@ skyfire-client -cli -conf ./peer.conf
   Windows/macOS 用两条 `/1` 路由。
 - Windows 真实隧道首次需管理员权限（创建 Wintun 网卡）；macOS 无公证会被
   Gatekeeper 拦截。
-- 已知限制：endpoint 例外尚未实现（见 issue #14 风险），全隧道下
-  Windows/macOS 可能出现 endpoint 流量误入隧道；MVP 建议先用分隧道
-  （Peer 的 `clientRoutes` 只填内网网段）验证。
+- 全隧道防环：Linux 用 fwmark 策略路由；Windows/macOS 在装载 `/1` 默认路由前，
+  先把每个 endpoint 钉到物理默认网关（`/32` 例外路由），避免隧道自身流量被
+  卷进隧道造成路由死循环/断网。
 
 ## 手动运行
 
@@ -124,6 +125,8 @@ sudo ./skyfired -config /etc/skyfire/config.json -addr :51821
 | `-username` | `admin` | 登录用户名 |
 | `-password` | 自动生成 | 登录密码 |
 | `-static` | 空（内嵌 UI） | 指定前端目录，覆盖内嵌版本 |
+| `-dns` | `127.0.0.1:53` | 隧道 DNS 转发器监听地址（空禁用） |
+| `-dns-upstream` | `8.8.8.8:53,1.1.1.1:53` | DNS 转发器上游 |
 | `-demo` | `false` | mock 驱动 + 示例数据，打印密码 `demo` |
 
 ## 开发

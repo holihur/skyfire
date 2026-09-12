@@ -40,6 +40,8 @@ export interface WireGuardInterface {
 
 export interface Settings {
   publicEndpoint: string
+  /** Whether clients may reach external networks through the server. Undefined means enabled. */
+  forwarding?: boolean
 }
 
 export interface InterfacePatch {

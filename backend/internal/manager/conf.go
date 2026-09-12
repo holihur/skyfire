@@ -53,6 +53,40 @@ func clientRoutes(p *store.Peer) []string {
 	return store.DefaultRoutes()
 }
 
+// clientDNS returns the DNS servers pushed to a peer. An explicit per-peer
+// DNS wins; otherwise clients default to the server's own tunnel address,
+// which the daemon's DNS forwarder answers (see internal/dnsproxy). That
+// keeps tunneled DNS clean for both full and split tunnels, since the tunnel
+// address is always routed through the tunnel.
+func clientDNS(iface *store.Interface, p *store.Peer) []string {
+	if len(p.DNS) > 0 {
+		return p.DNS
+	}
+	if host := firstTunnelHost(iface.Addresses); host != "" {
+		return []string{host}
+	}
+	return nil
+}
+
+// firstTunnelHost returns the first IPv4 host of the interface addresses,
+// falling back to the first address of any family.
+func firstTunnelHost(addrs []string) string {
+	var fallback string
+	for _, a := range addrs {
+		h := hostOf(a)
+		if h == "" {
+			continue
+		}
+		if fallback == "" {
+			fallback = h
+		}
+		if ip := net.ParseIP(h); ip != nil && ip.To4() != nil {
+			return h
+		}
+	}
+	return fallback
+}
+
 // ClientConfig renders a ready-to-use client configuration file (the kind you
 // import into a phone or laptop).
 func ClientConfig(settings store.Settings, iface *store.Interface, p *store.Peer) string {
@@ -61,7 +95,7 @@ func ClientConfig(settings store.Settings, iface *store.Interface, p *store.Peer
 	if addr != "" {
 		fmt.Fprintf(&b, "[Interface]\nPrivateKey = %s\n", p.PrivateKey)
 		fmt.Fprintf(&b, "Address = %s\n", addr)
-		if d := confDNS(p.DNS); d != "" {
+		if d := confDNS(clientDNS(iface, p)); d != "" {
 			fmt.Fprintf(&b, "DNS = %s\n", d)
 		}
 	} else {

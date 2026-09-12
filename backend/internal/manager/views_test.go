@@ -94,16 +94,16 @@ func TestDefaultRouteFamiliesAndFwMark(t *testing.T) {
 			{PublicKey: "k", Enabled: true, AllowedIPs: []string{"0.0.0.0/0"}},
 		},
 	}
-	cfg := toDriverConfig(iface)
+	cfg := toDriverConfig(iface, true)
 	if cfg.FirewallMark != routeFwMark {
 		t.Fatalf("full tunnel must set fwmark %d, got %d", routeFwMark, cfg.FirewallMark)
 	}
 	iface.Peers[0].AllowedIPs = []string{"10.42.0.2/32"}
-	if cfg = toDriverConfig(iface); cfg.FirewallMark != 0 {
+	if cfg = toDriverConfig(iface, true); cfg.FirewallMark != 0 {
 		t.Fatalf("subnet-only must not set fwmark, got %d", cfg.FirewallMark)
 	}
 	iface.Peers[0].Enabled = false
-	if cfg = toDriverConfig(iface); cfg.FirewallMark != 0 {
+	if cfg = toDriverConfig(iface, true); cfg.FirewallMark != 0 {
 		t.Fatalf("disabled peer must not trigger fwmark, got %d", cfg.FirewallMark)
 	}
 }
