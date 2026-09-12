@@ -118,14 +118,24 @@ Wintun 驱动（Windows）、endpoint 可达、`wintun.dll` 在位等。
 
 ### 全隧道下网络时通时断 / 客户端自己失联？
 
-这是**已知限制**：endpoint 例外路由尚未实现，全隧道（`AllowedIPs=0.0.0.0/0`）
-下端点流量可能被误送进隧道。改用**分隧道**验证：把 Peer 的 `clientRoutes`
-只填内网网段（如 `10.42.0.0/24`），不要用 `0.0.0.0/0`。
+已在客户端修复：全隧道（`AllowedIPs=0.0.0.0/0`）时，Linux 用 fwmark 策略路由，
+Windows/macOS 用 **endpoint 例外路由**（把 `Endpoint` 钉到物理默认网关），
+避免隧道自身流量被卷进隧道。若仍失联，检查：
+
+- `Endpoint` 是否为可解析的 IP/域名（无法解析时客户端会拒绝建立全隧道）；
+- Windows 是否以管理员运行（加 `/32` 例外路由需要权限）；
+- 本机是否有可用的默认网关。
+
+旧版本客户端没有该例外，建议升级；临时可用**分隧道**（Peer 的 `clientRoutes`
+只填内网网段）规避。
 
 ### DNS 配置没生效？
 
-客户端的 DNS 处理因平台而异：**Windows** 会通过 `netsh` 设置接口 DNS 并在断开
-时恢复 DHCP；**Linux / macOS 不修改**系统 DNS。需要时自行配置。
+客户端的 DNS 处理因平台而异，均会在连接时应用 `wg.conf` 的 `DNS`、断开时还原：
+**Windows** 用 `netsh`；**Linux** 优先 `resolvectl`（systemd-resolved），否则
+`resolvconf`，再否则直接改 `/etc/resolv.conf`（自动备份/恢复）；**macOS** 用
+`scutil` 安装解析器。若解析器仍不对，检查 `resolvectl status <接口>`（Linux）
+或客户端日志里的 `dns configured` / `apply DNS failed` 行。
 
 ### 服务端临时不可达，客户端还能起吗？
 

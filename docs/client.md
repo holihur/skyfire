@@ -139,18 +139,25 @@ skyfire-client
 
 | 平台 | 全隧道默认路由 | 端点防环 | DNS |
 | --- | --- | --- | --- |
-| Linux | wg-quick 风格策略路由：fwmark + 独立路由表 `51821`（避开 wg-quick 的 51820） | 用 fwmark 规则排除端点自身流量 | **不修改**系统 DNS |
-| Windows | 两条 `/1` 路由（`0.0.0.0/1` + `128.0.0.0/1`） | 见下方限制 | 通过 `netsh` 写接口 DNS，断开时恢复 DHCP |
-| macOS | 两条 `/1` 路由 | 见下方限制 | **不修改** |
+| Linux | wg-quick 风格策略路由：fwmark + 独立路由表 `51821`（避开 wg-quick 的 51820） | 用 fwmark 规则排除端点自身流量 | 连接时用 `resolvectl`（systemd-resolved）/ `resolvconf` / 直接改 `/etc/resolv.conf` 指向隧道 DNS，断开还原 |
+| Windows | 两条 `/1` 路由（`0.0.0.0/1` + `128.0.0.0/1`） | 装默认路由前把 endpoint 钉到物理默认网关（`route add <ep>/32 <gw>`），断开删除 | 通过 `netsh` 写接口 DNS，断开时恢复 DHCP |
+| macOS | 两条 `/1` 路由 | 装默认路由前把 endpoint 钉到物理默认网关（`route add -host <ep> <gw>`），断开删除 | 通过 `scutil` 安装解析器，断开时移除 |
+
+客户端配置里的 `DNS` 字段：服务端默认下发**服务器隧道地址**（接口 `addresses`
+的第一个 IPv4，如 `10.42.0.1`，由 skyfired 内置 DNS 转发器应答）；Peer 显式
+设置的 `dns` 优先。客户端连接时会应用该 DNS（Linux 优先 `resolvectl`，其次
+`resolvconf`，最后直接改 `/etc/resolv.conf` 并备份；macOS 用 `scutil`），断开
+时全部还原。
 
 权限：
 
 - Windows 真实隧道首次需**管理员权限**（创建 Wintun 网卡）。
 - macOS 未公证会被 Gatekeeper 拦截，需手动放行；建 utun 通常也需相应权限。
 
-> **已知限制**：endpoint 例外路由尚未实现。全隧道下 Windows/macOS 可能出现
-> endpoint 流量误入隧道。MVP 建议先用**分隧道**验证：把 Peer 的
-> `clientRoutes` 只填内网网段（如 `10.42.0.0/24`），不要用 `0.0.0.0/0`。
+> **端点防环**：全隧道时 Windows/macOS 会在安装 `/1` 默认路由前，解析每个
+> Peer 的 `Endpoint` 并加一条 `/32` 例外路由指向当前物理默认网关，断开时删除。
+> 若无法解析 endpoint 或找不到默认网关，客户端会**拒绝建立全隧道**（而不是冒
+> 断网风险）。endpoint 为 IPv6 时例外路由暂未覆盖。
 
 ---
 

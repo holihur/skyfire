@@ -85,6 +85,13 @@ func (t *Tunnel) Up(text string) error {
 		dev.Close()
 		return fmt.Errorf("configure %s: %w", realName, err)
 	}
+	if len(c.DNS) > 0 {
+		if err := configureDNS(realName, c.DNS); err != nil {
+			t.log.Warn("apply DNS failed", "interface", realName, "servers", c.DNS, "error", err)
+		} else {
+			t.log.Info("dns configured", "interface", realName, "servers", c.DNS)
+		}
+	}
 
 	t.dev = dev
 	t.name = realName
@@ -101,6 +108,7 @@ func (t *Tunnel) Down() error {
 		return nil
 	}
 	if t.conf != nil {
+		unconfigureDNS(t.name, t.conf.DNS)
 		unconfigureLink(t.name, t.conf)
 	}
 	if err := t.dev.Down(); err != nil {

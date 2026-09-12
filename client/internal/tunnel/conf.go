@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net"
+	"net/netip"
 	"strconv"
 	"strings"
 )
@@ -121,6 +123,52 @@ func (c *Conf) HasDefaultRoutes() (v4, v6 bool) {
 		}
 	}
 	return v4, v6
+}
+
+// EndpointIPs resolves every peer endpoint (host:port, [v6]:port or bare
+// host) to its IP addresses. Hostnames go through the system resolver and
+// unresolvable endpoints are skipped. The platform link code uses these to
+// pin the tunnel transport to the physical path, so a full tunnel cannot
+// capture its own encapsulated packets (a routing loop).
+func (c *Conf) EndpointIPs() []netip.Addr {
+	var out []netip.Addr
+	seen := make(map[netip.Addr]struct{})
+	add := func(ip netip.Addr) {
+		ip = ip.Unmap()
+		if _, ok := seen[ip]; ok {
+			return
+		}
+		seen[ip] = struct{}{}
+		out = append(out, ip)
+	}
+	for _, p := range c.Peers {
+		host := p.Endpoint
+		if h, _, err := net.SplitHostPort(p.Endpoint); err == nil {
+			host = h
+		}
+		host = strings.Trim(host, "[]")
+		if host == "" {
+			continue
+		}
+		if ip, err := netip.ParseAddr(host); err == nil {
+			add(ip)
+			continue
+		}
+		for _, s := range lookupHost(host) {
+			if ip, err := netip.ParseAddr(s); err == nil {
+				add(ip)
+			}
+		}
+	}
+	return out
+}
+
+func lookupHost(host string) []string {
+	ips, err := net.LookupHost(host)
+	if err != nil {
+		return nil
+	}
+	return ips
 }
 
 // UAPI renders the configuration in wireguard-go's IPC-set format. Keys are

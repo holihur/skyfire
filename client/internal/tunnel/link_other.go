@@ -11,3 +11,7 @@ func configureLink(string, *Conf) error {
 }
 
 func unconfigureLink(string, *Conf) {}
+
+func configureDNS(string, []string) error { return nil }
+
+func unconfigureDNS(string, []string) {}

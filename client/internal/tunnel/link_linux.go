@@ -5,7 +5,9 @@ package tunnel
 import (
 	"fmt"
 	"net/netip"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -116,4 +118,104 @@ func unconfigureLink(dev string, c *Conf) {
 			_ = iprun("route", "del", a, "dev", dev)
 		}
 	}
+}
+
+// resolvConfPath is the system resolver configuration; resolvBackupPath keeps
+// the pre-tunnel content when we have to edit it directly.
+const (
+	resolvConfPath   = "/etc/resolv.conf"
+	resolvBackupPath = "/run/skyfire-client/resolv.conf.bak"
+)
+
+// configureDNS points the system resolver at this tunnel's DNS servers,
+// preferring the least invasive backend available: systemd-resolved (per-link),
+// then resolvconf, then a direct /etc/resolv.conf edit with backup.
+func configureDNS(dev string, servers []string) error {
+	if len(servers) == 0 {
+		return nil
+	}
+	if haveCommand("resolvectl") && systemdResolvedActive() {
+		args := append([]string{"dns", dev}, servers...)
+		if err := runCmd("resolvectl", args...); err != nil {
+			return err
+		}
+		// "~." makes this link the default routing domain for all lookups.
+		return runCmd("resolvectl", "domain", dev, "~.")
+	}
+	if resolvconf, err := exec.LookPath("resolvconf"); err == nil {
+		cmd := exec.Command(resolvconf, "-a", dev)
+		cmd.Stdin = strings.NewReader(resolvconfBody(servers))
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("resolvconf -a %s: %w (%s)", dev, err, strings.TrimSpace(string(out)))
+		}
+		return nil
+	}
+	return writeResolvConf(servers)
+}
+
+// unconfigureDNS reverses configureDNS by re-detecting the same backend.
+func unconfigureDNS(dev string, servers []string) {
+	if len(servers) == 0 {
+		return
+	}
+	if haveCommand("resolvectl") && systemdResolvedActive() {
+		_ = runCmd("resolvectl", "revert", dev)
+		return
+	}
+	if resolvconf, err := exec.LookPath("resolvconf"); err == nil {
+		_ = exec.Command(resolvconf, "-d", dev).Run()
+		return
+	}
+	restoreResolvConf()
+}
+
+func resolvconfBody(servers []string) string {
+	var b strings.Builder
+	for _, s := range servers {
+		fmt.Fprintf(&b, "nameserver %s\n", s)
+	}
+	return b.String()
+}
+
+// writeResolvConf edits /etc/resolv.conf directly, saving the original once so
+// restoreResolvConf can put it back.
+func writeResolvConf(servers []string) error {
+	if _, err := os.Stat(resolvBackupPath); err != nil {
+		if data, rerr := os.ReadFile(resolvConfPath); rerr == nil {
+			if merr := os.MkdirAll(filepath.Dir(resolvBackupPath), 0o755); merr == nil {
+				_ = os.WriteFile(resolvBackupPath, data, 0o644)
+			}
+		}
+	}
+	return os.WriteFile(resolvConfPath, []byte(resolvconfBody(servers)), 0o644)
+}
+
+func restoreResolvConf() {
+	data, err := os.ReadFile(resolvBackupPath)
+	if err != nil {
+		return
+	}
+	_ = os.WriteFile(resolvConfPath, data, 0o644)
+	_ = os.Remove(resolvBackupPath)
+}
+
+func haveCommand(name string) bool {
+	_, err := exec.LookPath(name)
+	return err == nil
+}
+
+func systemdResolvedActive() bool {
+	out, err := exec.Command("systemctl", "is-active", "systemd-resolved").Output()
+	if err != nil {
+		return false
+	}
+	return strings.TrimSpace(string(out)) == "active"
+}
+
+func runCmd(name string, args ...string) error {
+	out, err := exec.Command(name, args...).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s %s: %w (%s)", name, strings.Join(args, " "), err, strings.TrimSpace(string(out)))
+	}
+	return nil
 }
