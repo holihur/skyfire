@@ -43,8 +43,8 @@ export default function Layout() {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="sticky top-0 z-30 border-b bg-card/80 backdrop-blur">
-        <div className="flex h-14 items-center gap-3 px-4 sm:px-6">
+      <header className="sticky top-0 z-30 border-b bg-card/80 pt-[env(safe-area-inset-top)] backdrop-blur">
+        <div className="flex h-14 items-center gap-2 px-3 sm:gap-3 sm:px-6">
           <Link to="/" className="flex shrink-0 items-center gap-2.5">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-sky-500 to-blue-700 text-sm font-bold text-primary-foreground shadow shadow-sky-900/50">
               S
@@ -112,7 +112,7 @@ export default function Layout() {
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto px-5 py-6">
+      <main className="flex-1 overflow-y-auto px-3 py-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:px-6 sm:py-6">
         <Suspense fallback={<PageFallback />}>
           <Outlet />
         </Suspense>

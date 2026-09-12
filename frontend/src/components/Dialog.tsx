@@ -22,7 +22,11 @@ export default function Dialog({ open, onOpenChange, title, description, childre
 
         <div className="text-sm">{children}</div>
 
-        {footer && <div className="flex flex-row-reverse gap-3">{footer}</div>}
+        {footer && (
+          <div className="flex flex-col-reverse gap-2 [&>button]:w-full sm:flex-row-reverse sm:gap-3 sm:[&>button]:w-auto">
+            {footer}
+          </div>
+        )}
       </DialogContent>
     </DialogRoot>
   )

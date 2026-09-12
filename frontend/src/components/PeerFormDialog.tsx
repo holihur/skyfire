@@ -115,7 +115,7 @@ export default function PeerFormDialog({ open, onOpenChange, onDone, ifaceName, 
       }
     >
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <Label htmlFor="peer-name">{t('peer.label.name')}</Label>
             <Input
@@ -136,7 +136,7 @@ export default function PeerFormDialog({ open, onOpenChange, onDone, ifaceName, 
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <Label htmlFor="peer-keepalive">{t('peer.label.keepalive')}</Label>
             <Input
@@ -158,7 +158,7 @@ export default function PeerFormDialog({ open, onOpenChange, onDone, ifaceName, 
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <Label htmlFor="peer-download-limit">{t('peer.label.downloadLimit')}</Label>
             <Input

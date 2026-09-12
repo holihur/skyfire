@@ -33,7 +33,7 @@ export default function Dashboard() {
 
   return (
     <div className="mx-auto max-w-6xl">
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">{t('dashboard.title')}</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">{t('dashboard.subtitle')}</p>

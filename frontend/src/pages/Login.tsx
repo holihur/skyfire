@@ -63,8 +63,8 @@ export default function Login() {
   }
 
   return (
-    <div className="flex h-full items-center justify-center">
-      <Card className="w-80 space-y-4 p-8 shadow-2xl shadow-black/40">
+    <div className="flex h-full items-center justify-center px-4 py-6 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
+      <Card className="w-full max-w-sm space-y-4 p-6 shadow-2xl shadow-black/40 sm:p-8">
         <div className="text-center">
           <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-700 text-2xl font-bold text-primary-foreground shadow-lg shadow-sky-900/50">
             S

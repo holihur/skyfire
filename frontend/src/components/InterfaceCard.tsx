@@ -157,8 +157,8 @@ export default function InterfaceCard({ iface, onDeleted, onEdited }: Props) {
         <Stat label={t('iface.stat.upload')} value={fmtBytes(totalTx)} sub={t('iface.stat.sent')} />
       </div>
 
-      <div className="mt-4 flex items-center justify-between border-t pt-3">
-        <span className="mono text-[11px] text-muted-foreground/70">{shortKey(iface.publicKey, 22)}</span>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t pt-3">
+        <span className="mono truncate text-[11px] text-muted-foreground/70">{shortKey(iface.publicKey, 22)}</span>
         <Button variant="outline" size="sm" onClick={() => navigate(`/interfaces/${iface.name}`)}>
           {t('iface.configure')}
         </Button>

@@ -96,8 +96,8 @@ export default function PeerDetailDialog({ open, onOpenChange, ifaceName, peer, 
       description={shortKey(peer.publicKey, 24)}
       width="max-w-xl"
       footer={
-        <div className="flex items-center gap-3">
-          <div className="mr-auto flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <Button variant="outline" onClick={() => onEdited?.()}>
               {t('peerDetail.edit')}
             </Button>
@@ -105,12 +105,14 @@ export default function PeerDetailDialog({ open, onOpenChange, ifaceName, peer, 
               {t('iface.delete')}
             </Button>
           </div>
-          <Button variant="outline" onClick={copyConfig}>
-            <Copy /> {t('common.copy')}
-          </Button>
-          <Button variant="outline" onClick={() => openDownload(api.peerConfigUrl(ifaceName, peer.publicKey))}>
-            <Download /> {t('common.download')}
-          </Button>
+          <div className="flex flex-col gap-2 sm:ml-auto sm:flex-row">
+            <Button variant="outline" onClick={copyConfig}>
+              <Copy /> {t('common.copy')}
+            </Button>
+            <Button variant="outline" onClick={() => openDownload(api.peerConfigUrl(ifaceName, peer.publicKey))}>
+              <Download /> {t('common.download')}
+            </Button>
+          </div>
         </div>
       }
     >
@@ -131,7 +133,7 @@ export default function PeerDetailDialog({ open, onOpenChange, ifaceName, peer, 
       )}
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="mb-4">
+        <TabsList className="mb-4 grid h-auto w-full grid-cols-2 gap-1 p-1 sm:inline-flex sm:h-9 sm:w-auto">
           <TabsTrigger value="qr">{t('peerDetail.qr')}</TabsTrigger>
           <TabsTrigger value="conf">{t('peerDetail.conf')}</TabsTrigger>
           <TabsTrigger value="client">{t('peerDetail.client')}</TabsTrigger>
@@ -143,7 +145,7 @@ export default function PeerDetailDialog({ open, onOpenChange, ifaceName, peer, 
             <img
               src={api.peerQrUrl(ifaceName, peer.publicKey)}
               alt={`${peer.name} QR`}
-              className="h-64 w-64"
+              className="h-56 w-56 max-w-full sm:h-64 sm:w-64"
               onLoad={loadConfig}
             />
           </div>

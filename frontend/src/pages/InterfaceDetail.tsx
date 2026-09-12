@@ -95,6 +95,7 @@ export default function InterfaceDetail() {
     )
   }
 
+  const peers = iface.peers ?? []
   const tone = !iface.up ? 'idle' : iface.running ? 'ok' : 'err'
   const status = !iface.up
     ? t('iface.disabled')
@@ -187,12 +188,12 @@ export default function InterfaceDetail() {
             </dl>
           </div>
 
-          <div className="flex flex-col items-end gap-3">
-            <div className="grid grid-cols-2 gap-3 text-center">
+          <div className="flex w-full flex-col gap-3 sm:w-auto sm:items-end">
+            <div className="grid w-full grid-cols-2 gap-3 text-center sm:w-auto">
               <MiniStat label={t('iface.stat.download')} value={fmtBytes(totalRx)} />
               <MiniStat label={t('iface.stat.upload')} value={fmtBytes(totalTx)} />
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button variant="outline" size="sm" onClick={() => setEditIface(true)}>
                 <Pencil /> {t('iface.edit')}
               </Button>
@@ -233,10 +234,10 @@ export default function InterfaceDetail() {
       </Card>
 
       <Tabs defaultValue="peers" className="mt-6">
-        <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <TabsList>
             <TabsTrigger value="peers">
-              {t('iface.stat.peers')} ({(iface.peers ?? []).length})
+              {t('iface.stat.peers')} ({peers.length})
             </TabsTrigger>
             <TabsTrigger value="conf">{t('iface.srvConf')}</TabsTrigger>
           </TabsList>
@@ -246,7 +247,7 @@ export default function InterfaceDetail() {
         </div>
 
         <TabsContent value="peers">
-          {(iface.peers ?? []).length === 0 ? (
+          {peers.length === 0 ? (
             <Card className="flex flex-col items-center gap-3 py-16 text-center">
               <span className="text-3xl">👥</span>
               <p className="text-muted-foreground">{t('iface.peer.noPeers')}</p>
@@ -256,93 +257,115 @@ export default function InterfaceDetail() {
             </Card>
           ) : (
             <Card className="overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t('iface.peerTable.name')}</TableHead>
-                    <TableHead>{t('iface.peerTable.address')}</TableHead>
-                    <TableHead className="hidden lg:table-cell">{t('iface.peerTable.pubkey')}</TableHead>
-                    <TableHead className="hidden md:table-cell">{t('iface.peerTable.status')}</TableHead>
-                    <TableHead className="hidden md:table-cell">{t('iface.peerTable.handshake')}</TableHead>
-                    <TableHead className="hidden sm:table-cell">{t('iface.peerTable.transfer')}</TableHead>
-                    <TableHead className="text-right">{t('iface.actions')}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(iface.peers ?? []).map((p) => (
-                    <TableRow key={p.publicKey}>
-                      <TableCell>
+              {/* Phones: a wide table is unusable, so render stacked cards. */}
+              <div className="divide-y md:hidden">
+                {peers.map((p) => (
+                  <div key={p.publicKey} className="space-y-3 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
                         <button
-                          className="font-medium text-foreground hover:text-primary"
+                          className="block max-w-full truncate text-left font-medium text-foreground hover:text-primary"
                           onClick={() => setPeerDetail(p)}
                         >
                           {p.name}
                         </button>
-                        <div className="text-xs text-muted-foreground/70">
-                          {p.presharedKey ? 'psk·on' : ''}
+                        <div className="mono mt-0.5 truncate text-xs text-muted-foreground">
+                          {ipOf(p.address)}
                           {p.endpoint ? ` · ${p.endpoint}` : ''}
                         </div>
-                      </TableCell>
-                      <TableCell className="mono text-secondary-foreground">{ipOf(p.address)}</TableCell>
-                      <TableCell className="hidden lg:table-cell">
-                        <button
-                          className="mono text-muted-foreground hover:text-primary"
-                          onClick={() => copy(p.publicKey, t('iface.pubkey'))}
-                          title={t('iface.peer.copyPubkey')}
-                        >
-                          {shortKey(p.publicKey, 20)}
-                        </button>
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        {p.connected ? (
-                          <StatusBadge tone="ok" label={t('iface.peer.connected')} />
-                        ) : (
-                          <StatusBadge tone="idle" label={t('iface.peer.idle')} />
-                        )}
-                      </TableCell>
-                      <TableCell className="hidden text-muted-foreground md:table-cell">
-                        {fmtAge(p.latestHandshake, lang)}
-                      </TableCell>
-                      <TableCell className="mono hidden text-secondary-foreground sm:table-cell">
-                        ↑ {fmtBytes(p.transferTx)} ↓ {fmtBytes(p.transferRx)}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon" title={t('iface.peer.showQR')} onClick={() => setPeerDetail(p)}>
-                            <Smartphone />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            title={t('iface.peer.downloadClient')}
-                            onClick={() => openDownload(api.peerConfigUrl(iface.name, p.publicKey))}
-                          >
-                            <Download />
-                          </Button>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" title={t('iface.peer.more')}>
-                                <MoreHorizontal />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" sideOffset={6} className="min-w-40">
-                              <DropdownMenuItem onSelect={() => setPeerForm({ open: true, peer: p })}>
-                                <Pencil /> {t('iface.editPeer')}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onSelect={() => copyConnectCommand(p)}>
-                                <Terminal /> {t('iface.peer.copyConnect')}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem variant="destructive" onSelect={() => setDeletePeerTarget(p)}>
-                                <Trash2 /> {t('iface.delete')}
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </TableCell>
+                      </div>
+                      {p.connected ? (
+                        <StatusBadge tone="ok" label={t('iface.peer.connected')} />
+                      ) : (
+                        <StatusBadge tone="idle" label={t('iface.peer.idle')} />
+                      )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                      <span>{fmtAge(p.latestHandshake, lang)}</span>
+                      <span className="mono">
+                        ↑ {fmtBytes(p.transferTx)} · ↓ {fmtBytes(p.transferRx)}
+                      </span>
+                      {p.presharedKey && <span>psk</span>}
+                    </div>
+                    <PeerActions
+                      ifaceName={iface.name}
+                      peer={p}
+                      onShowQR={() => setPeerDetail(p)}
+                      onEdit={() => setPeerForm({ open: true, peer: p })}
+                      onCopyCommand={() => copyConnectCommand(p)}
+                      onDelete={() => setDeletePeerTarget(p)}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              {/* Tablet / desktop: the full table. */}
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t('iface.peerTable.name')}</TableHead>
+                      <TableHead>{t('iface.peerTable.address')}</TableHead>
+                      <TableHead className="hidden lg:table-cell">{t('iface.peerTable.pubkey')}</TableHead>
+                      <TableHead className="hidden lg:table-cell">{t('iface.peerTable.status')}</TableHead>
+                      <TableHead className="hidden xl:table-cell">{t('iface.peerTable.handshake')}</TableHead>
+                      <TableHead className="hidden xl:table-cell">{t('iface.peerTable.transfer')}</TableHead>
+                      <TableHead className="text-right">{t('iface.actions')}</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {peers.map((p) => (
+                      <TableRow key={p.publicKey}>
+                        <TableCell>
+                          <button
+                            className="font-medium text-foreground hover:text-primary"
+                            onClick={() => setPeerDetail(p)}
+                          >
+                            {p.name}
+                          </button>
+                          <div className="text-xs text-muted-foreground/70">
+                            {p.presharedKey ? 'psk·on' : ''}
+                            {p.endpoint ? ` · ${p.endpoint}` : ''}
+                          </div>
+                        </TableCell>
+                        <TableCell className="mono text-secondary-foreground">{ipOf(p.address)}</TableCell>
+                        <TableCell className="hidden lg:table-cell">
+                          <button
+                            className="mono text-muted-foreground hover:text-primary"
+                            onClick={() => copy(p.publicKey, t('iface.pubkey'))}
+                            title={t('iface.peer.copyPubkey')}
+                          >
+                            {shortKey(p.publicKey, 20)}
+                          </button>
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell">
+                          {p.connected ? (
+                            <StatusBadge tone="ok" label={t('iface.peer.connected')} />
+                          ) : (
+                            <StatusBadge tone="idle" label={t('iface.peer.idle')} />
+                          )}
+                        </TableCell>
+                        <TableCell className="hidden text-muted-foreground xl:table-cell">
+                          {fmtAge(p.latestHandshake, lang)}
+                        </TableCell>
+                        <TableCell className="mono hidden text-secondary-foreground xl:table-cell">
+                          ↑ {fmtBytes(p.transferTx)} ↓ {fmtBytes(p.transferRx)}
+                        </TableCell>
+                        <TableCell>
+                          <PeerActions
+                            ifaceName={iface.name}
+                            peer={p}
+                            onShowQR={() => setPeerDetail(p)}
+                            onEdit={() => setPeerForm({ open: true, peer: p })}
+                            onCopyCommand={() => copyConnectCommand(p)}
+                            onDelete={() => setDeletePeerTarget(p)}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </Card>
           )}
         </TabsContent>
@@ -426,15 +449,17 @@ function KeyRow({ label, value, masked, onCopy, action }: {
   action?: React.ReactNode
 }) {
   return (
-    <div className="flex items-center gap-2">
-      <span className="w-24 shrink-0 text-xs uppercase tracking-wide text-muted-foreground/70">{label}</span>
-      <code className={`mono flex-1 truncate rounded-lg border bg-secondary px-3 py-2 text-secondary-foreground ${masked ? 'tracking-widest' : ''}`}>
-        {value}
-      </code>
-      {action}
-      <Button variant="ghost" size="icon" title={label} onClick={onCopy}>
-        <Copy />
-      </Button>
+    <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
+      <span className="text-xs uppercase tracking-wide text-muted-foreground/70 sm:w-24 sm:shrink-0">{label}</span>
+      <div className="flex min-w-0 items-center gap-2 sm:flex-1">
+        <code className={`mono min-w-0 flex-1 truncate rounded-lg border bg-secondary px-3 py-2 text-secondary-foreground ${masked ? 'tracking-widest' : ''}`}>
+          {value}
+        </code>
+        {action}
+        <Button variant="ghost" size="icon" title={label} onClick={onCopy}>
+          <Copy />
+        </Button>
+      </div>
     </div>
   )
 }
@@ -450,9 +475,62 @@ function KV({ k, v, mono }: { k: string; v: string; mono?: boolean }) {
 
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-28 rounded-xl border bg-secondary px-4 py-2.5">
+    <div className="min-w-0 rounded-xl border bg-secondary px-4 py-2.5">
       <div className="text-[11px] uppercase tracking-wide text-muted-foreground/70">{label}</div>
       <div className="mono text-sm text-info">{value}</div>
+    </div>
+  )
+}
+
+// PeerActions renders the per-peer action buttons, shared by the mobile card
+// list and the desktop table.
+function PeerActions({
+  ifaceName,
+  peer,
+  onShowQR,
+  onEdit,
+  onCopyCommand,
+  onDelete,
+}: {
+  ifaceName: string
+  peer: Peer
+  onShowQR: () => void
+  onEdit: () => void
+  onCopyCommand: () => void
+  onDelete: () => void
+}) {
+  const { t } = useI18n()
+  return (
+    <div className="flex justify-end gap-1">
+      <Button variant="ghost" size="icon" title={t('iface.peer.showQR')} onClick={onShowQR}>
+        <Smartphone />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        title={t('iface.peer.downloadClient')}
+        onClick={() => openDownload(api.peerConfigUrl(ifaceName, peer.publicKey))}
+      >
+        <Download />
+      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" title={t('iface.peer.more')}>
+            <MoreHorizontal />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" sideOffset={6} className="min-w-40">
+          <DropdownMenuItem onSelect={onEdit}>
+            <Pencil /> {t('iface.editPeer')}
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={onCopyCommand}>
+            <Terminal /> {t('iface.peer.copyConnect')}
+          </DropdownMenuItem>
+          <DropdownMenuItem variant="destructive" onSelect={onDelete}>
+            <Trash2 /> {t('iface.delete')}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   )
 }

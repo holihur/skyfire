@@ -69,13 +69,33 @@
   }
 
   html,
-  body,
-  #root {
+  body {
     height: 100%;
+  }
+
+  /* Prefer the dynamic viewport on mobile so the iOS URL bar showing/hiding
+     does not clip the bottom of the app. Older browsers keep height:100%. */
+  #root {
+    height: 100dvh;
   }
 
   body {
     @apply bg-background text-foreground antialiased;
+    /* never let a wide table/row cause the whole page to pan sideways */
+    overflow-x: hidden;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* iOS Safari zooms the page when focusing an input/textarea/select whose
+     font-size is below 16px. Force 16px on small screens so typing the
+     command palette / forms does not zoom the viewport. */
+  @media (max-width: 640px) {
+    input,
+    textarea,
+    select {
+      font-size: 16px;
+    }
   }
 }
 
