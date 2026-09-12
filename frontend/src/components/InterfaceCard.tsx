@@ -50,8 +50,10 @@ export default function InterfaceCard({ iface, onDeleted, onEdited }: Props) {
           : t('iface.notRunning')
 
   const peers = iface.peers ?? []
-  const totalRx = useMemo(() => peers.reduce((a, p) => a + p.transferRx, 0), [peers])
-  const totalTx = useMemo(() => peers.reduce((a, p) => a + p.transferTx, 0), [peers])
+  // Peer perspective (see docs/api.md): download = server → peer (transferTx),
+  // upload = peer → server (transferRx).
+  const totalDownload = useMemo(() => peers.reduce((a, p) => a + p.transferTx, 0), [peers])
+  const totalUpload = useMemo(() => peers.reduce((a, p) => a + p.transferRx, 0), [peers])
 
   const toggle = async () => {
     setApplying(true)
@@ -153,8 +155,8 @@ export default function InterfaceCard({ iface, onDeleted, onEdited }: Props) {
 
       <div className="mt-4 grid grid-cols-3 gap-3 text-center">
         <Stat label={t('iface.stat.peers')} value={`${iface.connectedPeers}/${iface.totalPeers}`} sub={t('iface.stat.connTotal')} />
-        <Stat label={t('iface.stat.download')} value={fmtBytes(totalRx)} sub={t('iface.stat.received')} />
-        <Stat label={t('iface.stat.upload')} value={fmtBytes(totalTx)} sub={t('iface.stat.sent')} />
+        <Stat label={t('iface.stat.download')} value={fmtBytes(totalDownload)} sub={t('iface.stat.received')} />
+        <Stat label={t('iface.stat.upload')} value={fmtBytes(totalUpload)} sub={t('iface.stat.sent')} />
       </div>
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t pt-3">

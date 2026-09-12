@@ -78,12 +78,14 @@ export default function InterfaceDetail() {
       .catch(() => {})
   }, [name])
 
-  const totalRx = useMemo(
-    () => (iface ? (iface.peers ?? []).reduce((a, p) => a + p.transferRx, 0) : 0),
+  // Peer perspective (see docs/api.md): download = server → peer (transferTx),
+  // upload = peer → server (transferRx).
+  const totalDownload = useMemo(
+    () => (iface ? (iface.peers ?? []).reduce((a, p) => a + p.transferTx, 0) : 0),
     [iface],
   )
-  const totalTx = useMemo(
-    () => (iface ? (iface.peers ?? []).reduce((a, p) => a + p.transferTx, 0) : 0),
+  const totalUpload = useMemo(
+    () => (iface ? (iface.peers ?? []).reduce((a, p) => a + p.transferRx, 0) : 0),
     [iface],
   )
 
@@ -190,8 +192,8 @@ export default function InterfaceDetail() {
 
           <div className="flex w-full flex-col gap-3 sm:w-auto sm:items-end">
             <div className="grid w-full grid-cols-2 gap-3 text-center sm:w-auto">
-              <MiniStat label={t('iface.stat.download')} value={fmtBytes(totalRx)} />
-              <MiniStat label={t('iface.stat.upload')} value={fmtBytes(totalTx)} />
+              <MiniStat label={t('iface.stat.download')} value={fmtBytes(totalDownload)} />
+              <MiniStat label={t('iface.stat.upload')} value={fmtBytes(totalUpload)} />
             </div>
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" size="sm" onClick={() => setEditIface(true)}>
@@ -283,7 +285,7 @@ export default function InterfaceDetail() {
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                       <span>{fmtAge(p.latestHandshake, lang)}</span>
                       <span className="mono">
-                        ↑ {fmtBytes(p.transferTx)} · ↓ {fmtBytes(p.transferRx)}
+                        ↑ {fmtBytes(p.transferRx)} · ↓ {fmtBytes(p.transferTx)}
                       </span>
                       {p.presharedKey && <span>psk</span>}
                     </div>
@@ -349,7 +351,7 @@ export default function InterfaceDetail() {
                           {fmtAge(p.latestHandshake, lang)}
                         </TableCell>
                         <TableCell className="mono hidden text-secondary-foreground xl:table-cell">
-                          ↑ {fmtBytes(p.transferTx)} ↓ {fmtBytes(p.transferRx)}
+                          ↑ {fmtBytes(p.transferRx)} ↓ {fmtBytes(p.transferTx)}
                         </TableCell>
                         <TableCell>
                           <PeerActions
