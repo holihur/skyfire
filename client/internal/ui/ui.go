@@ -19,6 +19,7 @@ type Controller interface {
 	Toggle() error
 	Status() (app.Status, string)
 	Traffic() app.TrafficStats
+	Latency() (time.Duration, bool)
 	ConnectString() string
 	SetConnectString(string) error
 	Whitelist() []string

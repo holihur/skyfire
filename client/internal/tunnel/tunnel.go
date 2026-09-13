@@ -9,6 +9,7 @@ package tunnel
 import (
 	"fmt"
 	"log/slog"
+	"net"
 	"sync"
 
 	"golang.zx2c4.com/wireguard/conn"
@@ -149,4 +150,21 @@ func (t *Tunnel) Interface() string {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return t.name
+}
+
+// Gateway returns the tunnel DNS server, which the server defaults to its own
+// tunnel IP (e.g. 10.42.0.1). It is used as the latency probe target, and is
+// empty when the running config declares no DNS server.
+func (t *Tunnel) Gateway() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.conf == nil {
+		return ""
+	}
+	for _, d := range t.conf.DNS {
+		if net.ParseIP(d) != nil {
+			return d
+		}
+	}
+	return ""
 }

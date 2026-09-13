@@ -45,6 +45,8 @@ func Run(c Controller, log *slog.Logger) error {
 	mStatus.Disabled = true
 	mTraffic := fyne.NewMenuItem(i18n.T("tray.trafficNone"), nil)
 	mTraffic.Disabled = true
+	mLatency := fyne.NewMenuItem(i18n.T("tray.latencyNone"), nil)
+	mLatency.Disabled = true
 	mToggle := fyne.NewMenuItem(i18n.T("tray.toggle"), nil)
 	mSet := fyne.NewMenuItem(i18n.T("tray.setConnect"), nil)
 	mWhite := fyne.NewMenuItem(i18n.T("tray.setWhitelist"), nil)
@@ -55,7 +57,7 @@ func Run(c Controller, log *slog.Logger) error {
 	mLang.ChildMenu = fyne.NewMenu("", mEn, mZh)
 
 	menu := fyne.NewMenu("Skyfire",
-		mStatus, mTraffic,
+		mStatus, mTraffic, mLatency,
 		fyne.NewMenuItemSeparator(),
 		mToggle, mSet, mWhite, mLang,
 		fyne.NewMenuItemSeparator(),
@@ -90,6 +92,13 @@ func Run(c Controller, log *slog.Logger) error {
 			}
 		}
 		mTraffic.Label = traffic
+		lat := i18n.T("tray.latencyNone")
+		if s == app.Connected {
+			if d, ok := c.Latency(); ok {
+				lat = i18n.T("tray.latencyValue", d.Milliseconds())
+			}
+		}
+		mLatency.Label = lat
 		if s == app.Connected || s == app.Connecting {
 			mToggle.Label = i18n.T("tray.toggleOn")
 		} else {
@@ -102,7 +111,7 @@ func Run(c Controller, log *slog.Logger) error {
 		mEn.Checked = i18n.Current() == i18n.EN
 		mZh.Checked = i18n.Current() == i18n.ZH
 
-		key := strings.Join([]string{mStatus.Label, mTraffic.Label, mToggle.Label}, "\x00")
+		key := strings.Join([]string{mStatus.Label, mTraffic.Label, mLatency.Label, mToggle.Label}, "\x00")
 		if key != lastLabels {
 			menu.Refresh()
 			lastLabels = key

@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net"
 	"sync"
 	"time"
 
@@ -50,6 +51,13 @@ const (
 	backoffMax    = 60 * time.Second
 )
 
+// Latency probe tuning: how often to measure the round-trip to the tunnel
+// gateway and how long a single probe may take.
+const (
+	latencyInterval = 5 * time.Second
+	latencyTimeout  = 3 * time.Second
+)
+
 // App owns the tunnel and the connection string.
 type App struct {
 	mu          sync.Mutex
@@ -71,6 +79,10 @@ type App struct {
 
 	lastTraffic   tunnel.Stats
 	lastTrafficAt time.Time
+
+	probeCancel context.CancelFunc
+	latency     time.Duration
+	haveLatency bool
 }
 
 // New creates an app backed by the given store.
@@ -152,11 +164,13 @@ func (a *App) AutoConnect() bool {
 }
 
 // Connect fetches (or reuses) the configuration and brings the tunnel up. It
-// also arms the reconnect supervisor when auto-reconnect is enabled.
+// also arms the reconnect supervisor and the latency prober when auto-reconnect
+// is enabled.
 func (a *App) Connect() error {
 	a.setDesired(true)
 	err := a.bringUp()
 	a.watch()
+	a.startProbe()
 	return err
 }
 
@@ -209,6 +223,7 @@ func (a *App) bringUp() error {
 func (a *App) Disconnect() error {
 	a.setDesired(false)
 	a.stopMonitor()
+	a.stopProbe()
 	a.connMu.Lock()
 	err := a.tun.Down()
 	a.connMu.Unlock()
@@ -271,6 +286,79 @@ func (a *App) Traffic() TrafficStats {
 		}
 	}
 	return out
+}
+
+// Latency returns the most recent round-trip time measured to the tunnel
+// gateway. ok is false until a probe succeeds (or when the gateway is unknown).
+func (a *App) Latency() (time.Duration, bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.latency, a.haveLatency
+}
+
+func (a *App) startProbe() {
+	a.mu.Lock()
+	if a.dryRun {
+		a.mu.Unlock()
+		return
+	}
+	if a.probeCancel != nil {
+		a.probeCancel()
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	a.probeCancel = cancel
+	a.mu.Unlock()
+	go a.probe(ctx)
+}
+
+func (a *App) stopProbe() {
+	a.mu.Lock()
+	cancel := a.probeCancel
+	a.probeCancel = nil
+	a.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+}
+
+func (a *App) probe(ctx context.Context) {
+	a.probeOnce()
+	t := time.NewTicker(latencyInterval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			a.probeOnce()
+		}
+	}
+}
+
+// probeOnce measures the round-trip to the tunnel gateway by timing a TCP
+// connect to its DNS port. Unlike ICMP this needs no privileges, so it works
+// for the non-root macOS client as well as the elevated Windows one.
+func (a *App) probeOnce() {
+	gw := a.tun.Gateway()
+	if gw == "" {
+		a.setLatency(0, false)
+		return
+	}
+	start := time.Now()
+	conn, err := net.DialTimeout("tcp", net.JoinHostPort(gw, "53"), latencyTimeout)
+	if err != nil {
+		a.setLatency(0, false)
+		return
+	}
+	_ = conn.Close()
+	a.setLatency(time.Since(start), true)
+}
+
+func (a *App) setLatency(d time.Duration, ok bool) {
+	a.mu.Lock()
+	a.latency = d
+	a.haveLatency = ok
+	a.mu.Unlock()
 }
 
 // SetAutoReconnect enables or disables automatic reconnection after the tunnel
