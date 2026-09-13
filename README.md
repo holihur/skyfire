@@ -68,14 +68,16 @@ sudo skyfire update -version v0.6.0
 ## 桌面客户端（一键连接）
 
 单文件客户端 `skyfire-client`：内嵌 `wireguard-go`，系统托盘一键连接/断开，
-凭连接字符串从服务端取配置，无需安装 WireGuard 官方客户端。
+凭连接字符串从服务端取配置，无需安装 WireGuard 官方客户端。桌面界面（托盘、
+对话框、多语言）基于 [fyne](https://fyne.io)，**仅用于 Windows 与 macOS**，
+因此这两个平台的构建需要 cgo；Linux 始终是纯 Go 的命令行客户端。
 
-- **Windows**：系统托盘（纯 Go，无需 cgo）。发布产物
+- **Windows**：系统托盘 + fyne 对话框（需 cgo/mingw 构建）。发布产物
   `skyfire-client-windows-amd64.exe`；真实隧道需要 `wintun.dll`（放在 exe 同目录）
-- **macOS**：系统托盘（需 cgo/Cocoa，由 CI 在 macOS 上构建）。发布产物
+- **macOS**：系统托盘 + fyne 对话框（需 cgo/Cocoa，由 CI 在 macOS 上构建）。发布产物
   `skyfire-client-darwin-amd64` / `-arm64`；未公证，首次运行需在“系统设置 →
   隐私与安全性”中放行
-- **Linux**：可编译，但只提供终端模式（实验性，用于本地测试）
+- **Linux**：仅终端模式（命令行，纯 Go、无 cgo）
 
 ### 用法
 

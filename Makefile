@@ -7,7 +7,7 @@ EMBDIR   := backend/internal/web/dist
 BINDIR   := backend
 CLIENTDIR := client
 
-.PHONY: all web backend client client-windows client-darwin install uninstall run demo test clean
+.PHONY: all web backend client client-windows client-darwin client-cli install uninstall run demo test clean
 
 all: web backend
 
@@ -20,20 +20,25 @@ web:
 backend:
 	cd $(BINDIR) && go build -trimpath -ldflags "-s -w" -o ../$(BINARY) ./cmd/skyfired
 
-# Desktop client for the current platform (tray on Windows; terminal
-# fallback on Linux / macOS without cgo).
+# Desktop client for the current platform. Windows/macOS use fyne (cgo); on
+# Linux this builds the terminal client.
 client:
-	cd $(CLIENTDIR) && go build -trimpath -ldflags "-s -w" -o ../$(CLIENT) .
+	cd $(CLIENTDIR) && CGO_ENABLED=1 go build -trimpath -ldflags "-s -w" -o ../$(CLIENT) .
 
-# Windows client with system tray (pure Go, no cgo needed).
+# Windows client (fyne tray + dialogs). Cross-compiling needs mingw-w64:
+#   sudo apt-get install gcc-mingw-w64-x86-64
 client-windows:
-	cd $(CLIENTDIR) && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o ../$(CLIENT)-windows-amd64.exe .
+	cd $(CLIENTDIR) && CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc \
+		go build -trimpath -ldflags "-s -w" -o ../$(CLIENT)-windows-amd64.exe .
 
-# macOS client with system tray. The tray needs cgo (Cocoa), so run this on
-# macOS. `CGO_ENABLED=0 GOOS=darwin go build` also works anywhere and yields
-# the terminal fallback.
+# macOS client (fyne tray + dialogs). Needs cgo/Cocoa, so build it on macOS.
 client-darwin:
-	cd $(CLIENTDIR) && GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o ../$(CLIENT)-darwin-arm64 .
+	cd $(CLIENTDIR) && CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 \
+		go build -trimpath -ldflags "-s -w" -o ../$(CLIENT)-darwin-arm64 .
+
+# Linux client without the GUI (terminal fallback); no cgo, no GL headers.
+client-cli:
+	cd $(CLIENTDIR) && CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o ../$(CLIENT)-linux-amd64 .
 
 install: all
 	install -d $(DESTDIR)$(BINROOT) $(DESTDIR)$(ETC)
@@ -53,7 +58,8 @@ demo: all
 
 test:
 	cd $(BINDIR) && go vet ./... && go test ./...
-	cd $(CLIENTDIR) && go vet ./... && go build ./...
+	# CGO_ENABLED=0 keeps this portable; CI builds the cgo/fyne path separately.
+	cd $(CLIENTDIR) && CGO_ENABLED=0 go vet ./... && CGO_ENABLED=0 go build ./...
 
 clean:
 	rm -f $(BINARY) $(CLIENT) $(CLIENT)-windows-amd64.exe $(CLIENT)-darwin-arm64

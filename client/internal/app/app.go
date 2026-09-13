@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/holihur/skyfire/client/internal/config"
+	"github.com/holihur/skyfire/client/internal/i18n"
 	"github.com/holihur/skyfire/client/internal/tunnel"
 )
 
@@ -121,6 +122,19 @@ func (a *App) Whitelist() []string { return a.store.Whitelist() }
 
 // SetWhitelist validates and saves the whitelist.
 func (a *App) SetWhitelist(v []string) error { return a.store.SetWhitelist(v) }
+
+// Lang returns the saved interface language code (may be empty = auto-detect).
+func (a *App) Lang() string { return a.store.Lang() }
+
+// SetLang persists and applies the interface language.
+func (a *App) SetLang(code string) error {
+	l := i18n.Parse(code)
+	if err := a.store.SetLang(string(l)); err != nil {
+		return err
+	}
+	i18n.Set(l)
+	return nil
+}
 
 // SetAutoConnect requests that the tunnel be brought up automatically once the
 // UI is ready (used when the client is launched with -connect).

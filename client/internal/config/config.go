@@ -25,6 +25,9 @@ type State struct {
 	// mode is active. An empty list means "route per the server config"
 	// (typically a full tunnel).
 	Whitelist []string `json:"whitelist,omitempty"`
+	// Lang is the preferred interface language code ("en", "zh"). Empty
+	// means "auto-detect".
+	Lang string `json:"lang,omitempty"`
 }
 
 // ErrNoConnect reports a missing connection string.
@@ -98,6 +101,22 @@ func (s *Store) Whitelist() []string {
 func (s *Store) SetWhitelist(domains []string) error {
 	s.mu.Lock()
 	s.st.Whitelist = NormalizeWhitelist(domains)
+	st := s.st
+	s.mu.Unlock()
+	return s.save(st)
+}
+
+// Lang returns the persisted interface language code (may be empty = auto).
+func (s *Store) Lang() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.st.Lang
+}
+
+// SetLang persists the interface language code (empty restores auto-detect).
+func (s *Store) SetLang(code string) error {
+	s.mu.Lock()
+	s.st.Lang = strings.TrimSpace(code)
 	st := s.st
 	s.mu.Unlock()
 	return s.save(st)

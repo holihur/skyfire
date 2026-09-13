@@ -23,6 +23,8 @@ type Controller interface {
 	SetConnectString(string) error
 	Whitelist() []string
 	SetWhitelist([]string) error
+	Lang() string
+	SetLang(string) error
 	AutoConnect() bool
 	SetOnChange(func(app.Status, string))
 }

@@ -2,7 +2,6 @@ package ui
 
 import (
 	"bytes"
-	"encoding/binary"
 	"image"
 	"image/color"
 	"image/png"
@@ -27,8 +26,8 @@ func statusColor(s app.Status) (r, g, b uint8) {
 	}
 }
 
-// dotPNG draws a filled circle on a transparent canvas and encodes it as PNG.
-// macOS (and other non-Windows trays) accept PNG icon bytes.
+// dotPNG draws a filled circle on a transparent canvas and encodes it as PNG,
+// ready for fyne.NewStaticResource.
 func dotPNG(r, g, b uint8) []byte {
 	img := image.NewRGBA(image.Rect(0, 0, dotSize, dotSize))
 	cx, cy := float64(dotSize)/2-0.5, float64(dotSize)/2-0.5
@@ -44,28 +43,5 @@ func dotPNG(r, g, b uint8) []byte {
 	}
 	var buf bytes.Buffer
 	_ = png.Encode(&buf, img)
-	return buf.Bytes()
-}
-
-// dotICO wraps a PNG in a single-image ICO container. Windows' SetIcon loads
-// the bytes with LoadImage(IMAGE_ICON), which only understands ICO; PNG data
-// embedded in an ICO entry is supported since Windows Vista.
-func dotICO(r, g, b uint8) []byte {
-	png := dotPNG(r, g, b)
-	buf := new(bytes.Buffer)
-	// ICONDIR header.
-	_ = binary.Write(buf, binary.LittleEndian, uint16(0)) // reserved
-	_ = binary.Write(buf, binary.LittleEndian, uint16(1)) // type: 1 = icon
-	_ = binary.Write(buf, binary.LittleEndian, uint16(1)) // image count
-	// ICONDIRENTRY.
-	buf.WriteByte(dotSize)                                       // width
-	buf.WriteByte(dotSize)                                       // height
-	buf.WriteByte(0)                                             // palette colours
-	buf.WriteByte(0)                                             // reserved
-	_ = binary.Write(buf, binary.LittleEndian, uint16(1))        // colour planes
-	_ = binary.Write(buf, binary.LittleEndian, uint16(32))       // bits per pixel
-	_ = binary.Write(buf, binary.LittleEndian, uint32(len(png))) // size of image data
-	_ = binary.Write(buf, binary.LittleEndian, uint32(6+16))     // offset of image data
-	buf.Write(png)
 	return buf.Bytes()
 }

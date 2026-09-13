@@ -13,11 +13,15 @@
 
 | 平台 | 产物 | 界面 | 依赖 |
 | --- | --- | --- | --- |
-| Windows amd64 | `skyfire-client-windows-amd64.exe` | 系统托盘（纯 Go，无 cgo） | 真实隧道需 `wintun.dll` 与 exe 同目录 |
-| macOS amd64/arm64 | `skyfire-client-darwin-amd64` / `-arm64` | 系统托盘（需 cgo/Cocoa，CI 在 macOS 构建） | 未公证，首次运行需在「系统设置 → 隐私与安全性」放行 |
-| Linux | 可自行编译 | **仅终端模式**（实验性，用于本地测试） | — |
+| Windows amd64 | `skyfire-client-windows-amd64.exe` | 系统托盘 + fyne 对话框（**需 cgo/mingw 构建**） | 真实隧道需 `wintun.dll` 与 exe 同目录 |
+| macOS amd64/arm64 | `skyfire-client-darwin-amd64` / `-arm64` | 系统托盘 + fyne 对话框（需 cgo/Cocoa，CI 在 macOS 构建） | 未公证，首次运行需在「系统设置 → 隐私与安全性」放行 |
+| Linux | 可自行编译 | **仅终端模式**（命令行） | — |
 
 > Windows arm64 无发布产物（goreleaser 跳过该目标）。
+>
+> 桌面界面（托盘 + 对话框）与多语言基于 [fyne](https://fyne.io)，仅用于
+> **Windows 与 macOS**，因此这两个平台**需要 cgo**：Windows 交叉编译要
+> mingw-w64，macOS 要 Xcode。Linux 始终是纯 Go 的命令行客户端。
 
 ---
 
@@ -49,24 +53,30 @@ https://vpn.example.com:51821/api/p/<token>/wg.conf
 ### 3.2 从源码构建
 
 ```bash
-# 当前平台（Windows 托盘 / Linux 终端）
+# 当前平台（Windows/macOS 为 fyne 托盘 + 对话框；Linux 为终端版）
 make client
 
-# Windows amd64（含托盘，纯 Go）
+# Windows amd64（fyne 托盘 + 对话框；交叉编译需要 mingw-w64）
+sudo apt-get install gcc-mingw-w64-x86-64
 make client-windows
 
-# macOS arm64（托盘需 cgo，在 macOS 上构建）
+# macOS arm64（fyne 托盘需 cgo/Cocoa，在 macOS 上构建）
 make client-darwin
+
+# Linux 终端版（无 cgo）
+make client-cli
 ```
 
 产物输出到仓库根目录。手动构建示例：
 
 ```bash
 cd client
-# Windows
-CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o skyfire-client.exe .
-# macOS（托盘，在 macOS 上）
-GOOS=darwin GOARCH=arm64 go build -o skyfire-client .
+# Windows（需要 mingw-w64）
+CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc go build -o skyfire-client.exe .
+# macOS（fyne 托盘，在 macOS 上）
+CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -o skyfire-client .
+# Linux 终端版（无 cgo）
+CGO_ENABLED=0 go build -o skyfire-client .
 ```
 
 ---
@@ -78,6 +88,8 @@ GOOS=darwin GOARCH=arm64 go build -o skyfire-client .
 | `-connect` | 空 | 连接字符串；保存后**立即连接**（托盘启动即已连接） |
 | `-conf` | 空 | 使用本地 WireGuard `.conf` 文件，改为从文件而非服务端拉取 |
 | `-whitelist` | 空 | 逗号分隔的域名/CIDR 白名单，仅这些目标走隧道；显式传空则清空（恢复全隧道） |
+| `-lang` | 空 | 界面语言：`en` 或 `zh`；留空则用已保存设置，再否则自动检测系统语言 |
+| `-no-reconnect` | `false` | 关闭掉线自动重连（默认开启） |
 | `-dry-run` | `false` | 只拉取并校验配置，不建隧道、不改系统 |
 | `-cli` | `false` | 终端模式而非系统托盘 |
 | `-verbose` | `false` | debug 日志 |
@@ -90,6 +102,12 @@ GOOS=darwin GOARCH=arm64 go build -o skyfire-client .
 - Windows：`%AppData%\skyfire-client\config.json`
 
 同目录还会缓存最近一次成功拉取的配置（`wg.conf`），服务端临时不可达时自动回退使用。
+
+### 多语言
+
+桌面界面支持 **English / 中文**，来源优先级：`-lang` 参数 > 已保存的 `lang` 配置 >
+系统语言（Windows 读系统区域，其他平台读 `LANG`/`LC_ALL`/`SKYFIRE_LANG`）。
+托盘右键菜单里有 **Language** 子菜单可随时切换，选择会写入配置。
 
 ---
 

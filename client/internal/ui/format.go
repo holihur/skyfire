@@ -1,6 +1,25 @@
 package ui
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/holihur/skyfire/client/internal/app"
+	"github.com/holihur/skyfire/client/internal/i18n"
+)
+
+// statusLabel renders a tunnel status in the active interface language.
+func statusLabel(s app.Status) string {
+	switch s {
+	case app.Connected:
+		return i18n.T("status.connected")
+	case app.Connecting:
+		return i18n.T("status.connecting")
+	case app.Error:
+		return i18n.T("status.error")
+	default:
+		return i18n.T("status.disconnected")
+	}
+}
 
 // fmtBytes renders a byte count using binary units (KiB, MiB, …).
 func fmtBytes(n uint64) string {

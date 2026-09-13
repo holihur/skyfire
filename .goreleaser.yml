@@ -32,16 +32,13 @@ builds:
       - goos: windows
         goarch: arm64
 
-  # Desktop client. Windows and Linux are built here (pure Go; the Windows
-  # build includes the systray, Linux is the terminal fallback). macOS needs
-  # cgo (systray/Cocoa) and is built on a macOS runner by the release
-  # workflow, then attached to the same release.
+  # Desktop client. Windows uses the fyne tray/dialogs and therefore needs cgo
+  # (mingw-w64) — see the overrides below; Linux is the terminal build (no cgo).
+  # macOS also uses fyne and is built on a macOS runner by the release workflow.
   - id: skyfire-client
     dir: client
     main: .
     binary: skyfire-client
-    env:
-      - CGO_ENABLED=0
     flags:
       - -trimpath
     ldflags:
@@ -55,6 +52,22 @@ builds:
     ignore:
       - goos: windows
         goarch: arm64
+    # Set CGO_ENABLED explicitly per target so the result never depends on
+    # whether goreleaser merges or replaces override env.
+    overrides:
+      - goos: windows
+        goarch: amd64
+        env:
+          - CGO_ENABLED=1
+          - CC=x86_64-w64-mingw32-gcc
+      - goos: linux
+        goarch: amd64
+        env:
+          - CGO_ENABLED=0
+      - goos: linux
+        goarch: arm64
+        env:
+          - CGO_ENABLED=0
 
 archives:
   - id: skyfired

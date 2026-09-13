@@ -11,6 +11,7 @@ import (
 
 	"github.com/holihur/skyfire/client/internal/app"
 	"github.com/holihur/skyfire/client/internal/config"
+	"github.com/holihur/skyfire/client/internal/i18n"
 	"github.com/holihur/skyfire/client/internal/ui"
 )
 
@@ -22,6 +23,7 @@ func main() {
 		connect     = flag.String("connect", "", "Skyfire connection string (peer config URL with token); saved and connected immediately (tray starts connected)")
 		confPath    = flag.String("conf", "", "use a local WireGuard .conf file instead of fetching from the server")
 		whitelist   = flag.String("whitelist", "", "comma-separated domains/CIDRs routed through the tunnel (empty = full tunnel); saved and applied on connect")
+		langFlag    = flag.String("lang", "", "interface language: en or zh (default: saved setting, else auto-detect)")
 		dryRun      = flag.Bool("dry-run", false, "validate the configuration without creating a tunnel")
 		cliMode     = flag.Bool("cli", false, "run in the terminal instead of the system tray")
 		noReconnect = flag.Bool("no-reconnect", false, "disable automatic reconnect when the tunnel drops")
@@ -60,6 +62,19 @@ func main() {
 		}
 		log.Info("whitelist saved", "entries", store.Whitelist())
 	}
+
+	// Resolve the interface language: -lang flag > saved setting > detection.
+	lang := i18n.Detect()
+	if saved := store.Lang(); saved != "" {
+		lang = i18n.Parse(saved)
+	}
+	if *langFlag != "" {
+		lang = i18n.Parse(*langFlag)
+		if err := store.SetLang(string(lang)); err != nil {
+			log.Warn("save language", "error", err)
+		}
+	}
+	i18n.Set(lang)
 
 	a := app.New(store, log)
 	if *noReconnect {
