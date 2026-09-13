@@ -19,6 +19,11 @@ type Settings struct {
 	// through this server (internet transit / NAT). nil means enabled, which
 	// preserves the historical behavior.
 	Forwarding *bool `json:"forwarding,omitempty"`
+	// Blacklist lists domains, IP addresses and CIDR prefixes whose traffic is
+	// dropped: DNS queries for listed domains are discarded, and packets to
+	// listed addresses/CIDRs are dropped. Domains may use a leading "*."
+	// wildcard; IPs and CIDRs cover both address families.
+	Blacklist []string `json:"blacklist,omitempty"`
 }
 
 // ForwardingEnabled reports whether client traffic is forwarded to external

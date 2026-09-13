@@ -17,6 +17,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"skyfire/internal/blacklist"
 )
 
 // DefaultTimeout bounds a single upstream exchange.
@@ -27,6 +29,9 @@ type Server struct {
 	Upstreams []string      // host:port, e.g. "8.8.8.8:53"
 	Timeout   time.Duration // per-exchange deadline (0 -> DefaultTimeout)
 	Log       *slog.Logger
+	// Blacklist, when non-nil, makes the proxy silently drop queries for
+	// blocked domains (matched traffic is discarded, not answered).
+	Blacklist *blacklist.Store
 
 	next      atomic.Uint32
 	udpConns  []*net.UDPConn
@@ -100,6 +105,15 @@ func (s *Server) Start(addr string) error {
 	return nil
 }
 
+// Addr returns the UDP listen address, which is useful when the server was
+// started with port 0. It returns nil before Start.
+func (s *Server) Addr() net.Addr {
+	if len(s.udpConns) == 0 {
+		return nil
+	}
+	return s.udpConns[0].LocalAddr()
+}
+
 // Close stops the listeners and waits for in-flight handlers to finish.
 func (s *Server) Close() {
 	s.closeOnce.Do(func() {
@@ -118,6 +132,47 @@ func (s *Server) Close() {
 func (s *Server) upstream() string {
 	n := s.next.Add(1)
 	return s.Upstreams[(n-1)%uint32(len(s.Upstreams))]
+}
+
+// blocked reports whether the query is for a blacklisted domain. Malformed
+// query names are never blocked.
+func (s *Server) blocked(q []byte) bool {
+	m := s.Blacklist.Load()
+	if m.Empty() {
+		return false
+	}
+	name, ok := questionName(q)
+	if !ok {
+		return false
+	}
+	return m.MatchDomain(name)
+}
+
+// questionName extracts the QNAME from a query. Queries carry an uncompressed
+// name in the question section, so no full DNS parser is needed.
+func questionName(q []byte) (string, bool) {
+	if len(q) < 12 {
+		return "", false
+	}
+	var b []byte
+	for i := 12; i < len(q); {
+		l := int(q[i])
+		i++
+		switch {
+		case l == 0:
+			return string(b), true
+		case l&0xc0 != 0: // compression is invalid in a question
+			return "", false
+		case i+l > len(q):
+			return "", false
+		}
+		if len(b) > 0 {
+			b = append(b, '.')
+		}
+		b = append(b, q[i:i+l]...)
+		i += l
+	}
+	return "", false
 }
 
 func (s *Server) serveUDP(conn *net.UDPConn) {
@@ -139,6 +194,10 @@ func (s *Server) serveUDP(conn *net.UDPConn) {
 }
 
 func (s *Server) relayUDP(conn *net.UDPConn, client *net.UDPAddr, q []byte) {
+	if s.blocked(q) {
+		s.Log.Debug("dns query dropped (blacklist)", "client", client)
+		return
+	}
 	resp, err := s.exchangeUDP(q)
 	if err != nil {
 		s.Log.Debug("dns udp exchange failed", "error", err, "client", client)
@@ -215,6 +274,10 @@ func (s *Server) relayTCP(client net.Conn) {
 		}
 		q := make([]byte, length)
 		if _, err := io.ReadFull(client, q); err != nil {
+			return
+		}
+		if s.blocked(q) {
+			s.Log.Debug("dns query dropped (blacklist)", "client", client.RemoteAddr())
 			return
 		}
 		// A single upstream connection serves one query here; resolvers

@@ -156,6 +156,11 @@ func (u *Userspace) RemoveShaping(name string) {
 	removeTCShaping(name)
 }
 
+// ApplyBlacklist installs the block list as FORWARD drop rules on the OS path.
+func (u *Userspace) ApplyBlacklist(name string, entries []string) error {
+	return applyBlacklistFirewall(name, entries)
+}
+
 func (u *Userspace) Status(name string) (DeviceStatus, error) {
 	wd := u.get(name)
 	if wd == nil {

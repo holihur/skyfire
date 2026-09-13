@@ -4,11 +4,20 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/components/ui/use-toast'
 import { api } from '../lib/api'
 import { useI18n } from '../i18n'
 import { useTheme } from '../theme'
 import type { Settings } from '../lib/types'
+
+/** Splits a textarea value into trimmed, non-empty block-list entries. */
+function parseEntries(text: string): string[] {
+  return text
+    .split(/[\n,]+/)
+    .map((v) => v.trim())
+    .filter(Boolean)
+}
 
 export default function SettingsDialog({
   open,
@@ -24,15 +33,23 @@ export default function SettingsDialog({
   const { theme, setTheme } = useTheme()
   const [saving, setSaving] = useState(false)
   const [s, setS] = useState<Settings>({ publicEndpoint: '' })
+  const [blacklistText, setBlacklistText] = useState('')
 
   useEffect(() => {
-    if (open) void api.settings().then(setS).catch(() => {})
+    if (!open) return
+    void api
+      .settings()
+      .then((v) => {
+        setS(v)
+        setBlacklistText((v.blacklist ?? []).join('\n'))
+      })
+      .catch(() => {})
   }, [open])
 
   const save = async () => {
     setSaving(true)
     try {
-      await api.saveSettings(s)
+      await api.saveSettings({ ...s, blacklist: parseEntries(blacklistText) })
       toast({ description: t('common.saved'), variant: 'success' })
       onOpenChange(false)
       onSaved?.()
@@ -88,6 +105,25 @@ export default function SettingsDialog({
               checked={s.forwarding !== false}
               onCheckedChange={(v) => setS({ ...s, forwarding: v })}
             />
+          </div>
+        </section>
+
+        <section className="space-y-3 border-t pt-4">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {t('settings.section.block')}
+          </h3>
+          <div>
+            <Label htmlFor="blacklist">{t('settings.blacklist')}</Label>
+            <Textarea
+              id="blacklist"
+              className="mt-1 min-h-[120px] font-mono text-xs"
+              placeholder={t('settings.blacklistPh')}
+              value={blacklistText}
+              onChange={(e) => setBlacklistText(e.target.value)}
+            />
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              {t('settings.blacklistHelp')}
+            </p>
           </div>
         </section>
 

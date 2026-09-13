@@ -50,6 +50,10 @@ type PeerShaping struct {
 // enforce rate limits. Callers should treat it as non-fatal and log a hint.
 var ErrShapingUnsupported = errors.New("rate limiting is not supported by this driver")
 
+// ErrBlacklistUnsupported is returned by ApplyBlacklist when the driver cannot
+// enforce the block list. Callers should treat it as non-fatal and log a hint.
+var ErrBlacklistUnsupported = errors.New("blacklist is not supported by this driver")
+
 // PeerStatus is live runtime information about a peer.
 type PeerStatus struct {
 	PublicKey           string    `json:"publicKey"`
@@ -142,5 +146,11 @@ type Driver interface {
 	ApplyShaping(name string, peers []PeerShaping) error
 	// RemoveShaping removes any per-peer rate limiting for the interface.
 	RemoveShaping(name string)
+	// ApplyBlacklist installs the operator block list (domains, IP addresses
+	// and CIDR prefixes). Matched traffic is dropped: domains are dropped at
+	// the DNS proxy, addresses at the data path. An empty list clears any
+	// installed rules. Drivers that cannot enforce it return
+	// ErrBlacklistUnsupported; the configuration is still kept.
+	ApplyBlacklist(name string, entries []string) error
 	Close() error
 }

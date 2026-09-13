@@ -175,6 +175,11 @@ const en = {
   'settings.forwarding': 'Traffic forwarding',
   'settings.forwardingHelp':
     'Allow tunnel clients to reach external networks (the internet) through this server. Off limits them to the tunnel and the server itself.',
+  'settings.section.block': 'Access control',
+  'settings.blacklist': 'Block list',
+  'settings.blacklistPh': 'ads.example.com\n*.tracker.example\n203.0.113.0/24\n2001:db8::1',
+  'settings.blacklistHelp':
+    'One entry per line: a domain (*.example.com for subdomains), an IP address, or a CIDR. Matched traffic is dropped — blocked domains fail to resolve and blocked addresses are not forwarded.',
   'settings.section.general': 'General',
   'settings.section.appearance': 'Appearance',
   'settings.theme': 'Theme',
@@ -407,6 +412,11 @@ const zh: Record<string, string> = {
   'settings.forwarding': '流量转发',
   'settings.forwardingHelp':
     '允许隧道客户端通过本服务器访问外部网络（互联网）。关闭后客户端只能访问隧道内和服务器本身。',
+  'settings.section.block': '访问控制',
+  'settings.blacklist': '黑名单',
+  'settings.blacklistPh': 'ads.example.com\n*.tracker.example\n203.0.113.0/24\n2001:db8::1',
+  'settings.blacklistHelp':
+    '每行一条：域名（子域用 *.example.com）、IP 或 CIDR。命中的流量会被丢弃——黑名单域名无法解析，黑名单地址不再转发。',
   'settings.section.general': '通用',
   'settings.section.appearance': '外观',
   'settings.theme': '主题',

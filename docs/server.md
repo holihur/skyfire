@@ -234,6 +234,27 @@ sudo skyfired -dns '' ...   # 禁用转发器
 > `wg.conf` 的 `DNS`（Windows `netsh`、Linux `resolvectl`/`resolvconf`、
 > macOS `scutil`；断开时还原）。
 
+### 4.3 黑名单（域名 / IP / CIDR）
+
+在 Web UI「设置」里可配置一份**全局黑名单**（API 字段 `settings.blacklist`），
+每项为：
+
+- **域名**：精确匹配，或前导 `*.` 通配子域（`*.example.com` 匹配 `a.example.com`，
+  不匹配 `example.com`）。
+- **IP**：`203.0.113.9`。
+- **CIDR**：`203.0.113.0/24`、`2001:db8::/32`（v4/v6 均可）。
+
+**命中即丢弃**：
+
+- **域名**：DNS 转发器解析查询名后，命中黑名单的查询**直接丢弃**（不回包），
+  客户端因此无法解析该域名。
+- **IP/CIDR**：转发层丢弃目标命中黑名单的报文。`netstack`（默认驱动）在进程内
+  丢弃；`userspace`/`kernel` 在 Linux 上通过 `iptables`/`ip6tables` 的 FORWARD
+  链（每接口专用链 `SKY_BL_<iface>`，仅过滤从隧道入口的流量）丢弃；`mock` 不生效。
+
+保存设置后即时生效，无需重连。域名过滤仅在客户端使用隧道 DNS 时有效；若客户端
+自带 DoH/DoT 或硬编码解析器，需靠 IP/CIDR 条目兜底。
+
 ---
 
 ## 5. 驱动（-driver）

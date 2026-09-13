@@ -215,13 +215,17 @@ curl -b cookie.txt http://localhost:51821/api/health
 ```bash
 # 读取
 curl -b cookie.txt http://localhost:51821/api/settings
-# => {"publicEndpoint":"vpn.example.com"}
+# => {"publicEndpoint":"vpn.example.com","blacklist":["ads.example.com"]}
 
-# 更新
+# 更新（含黑名单：域名/IP/CIDR，命中即丢弃）
 curl -b cookie.txt -X PUT http://localhost:51821/api/settings \
   -H 'Content-Type: application/json' \
-  -d '{"publicEndpoint":"192.168.1.10"}'
+  -d '{"publicEndpoint":"192.168.1.10","blacklist":["ads.example.com","*.tracker.example","203.0.113.0/24","2001:db8::1"]}'
 ```
+
+- `blacklist` 每项为**域名**（子域用前导 `*.`，如 `*.example.com`）、**IP** 或
+  **CIDR**（v4/v6 均可）。命中即丢弃：黑名单域名的 DNS 查询被直接丢弃（不解析），
+  黑名单地址/网段的转发报文被丢弃。详见[服务端文档 · 黑名单](server.md#43-黑名单域名--ip--cidr)。
 
 ### 3.4 接口
 

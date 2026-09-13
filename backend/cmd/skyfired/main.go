@@ -179,10 +179,13 @@ func main() {
 	if !*dryRun && *dnsAddr != "" {
 		if proxy, err := dnsproxy.New(splitDNSUpstreams(*dnsUp), log); err != nil {
 			log.Warn("dns proxy config invalid", "error", err)
-		} else if err := proxy.Start(*dnsAddr); err != nil {
-			log.Warn("dns proxy failed to start", "addr", *dnsAddr, "error", err)
 		} else {
-			dnsProxy = proxy
+			proxy.Blacklist = mgr.Blacklist()
+			if err := proxy.Start(*dnsAddr); err != nil {
+				log.Warn("dns proxy failed to start", "addr", *dnsAddr, "error", err)
+			} else {
+				dnsProxy = proxy
+			}
 		}
 	}
 

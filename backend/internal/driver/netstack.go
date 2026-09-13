@@ -27,6 +27,8 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
 	"gvisor.dev/gvisor/pkg/waiter"
+
+	"skyfire/internal/blacklist"
 )
 
 // Netstack is a fully userspace driver: the in-process wireguard-go device is
@@ -47,12 +49,13 @@ type Netstack struct {
 }
 
 type nsDevice struct {
-	dev     *device.Device
-	tun     *nsTun
-	mtu     int
-	addr    []string
-	last    Config
-	shaping []nsShaping
+	dev       *device.Device
+	tun       *nsTun
+	mtu       int
+	addr      []string
+	last      Config
+	shaping   []nsShaping
+	blacklist *blacklist.Matcher
 }
 
 // nsShaping is the per-peer rate limit applied in the userspace relay path.
@@ -273,6 +276,21 @@ func (n *Netstack) RemoveShaping(name string) {
 	}
 }
 
+// ApplyBlacklist installs the block list for the userspace relay path. An
+// empty list clears it.
+func (n *Netstack) ApplyBlacklist(name string, entries []string) error {
+	d := n.get(name)
+	if d == nil {
+		return fmt.Errorf("interface %s not created", name)
+	}
+	m := blacklist.Compile(entries)
+	d.blacklist = m
+	if d.tun != nil {
+		d.tun.blacklist.Store(m)
+	}
+	return nil
+}
+
 // buildNSShaping converts driver shaping specs into the userspace form,
 // keeping only peers that actually carry a limit.
 func buildNSShaping(peers []PeerShaping) []nsShaping {
@@ -358,6 +376,7 @@ type nsTun struct {
 	peerNets       []netip.Prefix
 	forwarding     atomic.Bool
 	shaping        atomic.Pointer[[]nsShaping]
+	blacklist      atomic.Pointer[blacklist.Matcher]
 	closeOnce      sync.Once
 	closed         atomic.Bool
 }
@@ -636,6 +655,10 @@ func (t *nsTun) handleTCP(fr *tcp.ForwarderRequest) {
 			fr.Complete(true)
 			return
 		}
+		if m := t.blacklist.Load(); m.MatchIP(dst.Addr()) {
+			fr.Complete(true)
+			return
+		}
 		src, _ := tcpipToNetip(fr.ID().RemoteAddress)
 		dl, ul := t.shapingFor(src)
 		raddr := &net.TCPAddr{IP: net.ParseIP(t.dialHost(dst.Addr())), Port: int(dst.Port())}
@@ -672,6 +695,9 @@ func (t *nsTun) handleUDP(r *udp.ForwarderRequest) {
 		// Drop transit datagrams when forwarding is disabled; local
 		// destinations (tunnel DNS, server API) stay reachable.
 		if !t.forwarding.Load() && !t.isLocal(dst.Addr()) {
+			return
+		}
+		if m := t.blacklist.Load(); m.MatchIP(dst.Addr()) {
 			return
 		}
 		sock, err := net.DialUDP("udp", nil, udpDial(t, dst.Addr(), dst.Port()))

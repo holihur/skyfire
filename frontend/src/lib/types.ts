@@ -44,6 +44,8 @@ export interface Settings {
   publicEndpoint: string
   /** Whether clients may reach external networks through the server. Undefined means enabled. */
   forwarding?: boolean
+  /** Domains, IP addresses and CIDRs whose traffic is dropped. */
+  blacklist?: string[]
 }
 
 export interface InterfacePatch {

@@ -122,6 +122,11 @@ func (k *Kernel) RemoveShaping(name string) {
 	removeTCShaping(name)
 }
 
+// ApplyBlacklist installs the block list as FORWARD drop rules on the OS path.
+func (k *Kernel) ApplyBlacklist(name string, entries []string) error {
+	return applyBlacklistFirewall(name, entries)
+}
+
 func (k *Kernel) Status(name string) (DeviceStatus, error) {
 	dev, err := k.client.Device(name)
 	if err != nil {

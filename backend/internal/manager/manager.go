@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"skyfire/internal/blacklist"
 	"skyfire/internal/driver"
 	"skyfire/internal/store"
 
@@ -22,12 +23,13 @@ import (
 
 // Manager persists and applies WireGuard configuration.
 type Manager struct {
-	path   string
-	mu     sync.Mutex
-	store  *store.Config
-	driver driver.Driver
-	dryRun bool
-	log    *slog.Logger
+	path      string
+	mu        sync.Mutex
+	store     *store.Config
+	driver    driver.Driver
+	dryRun    bool
+	log       *slog.Logger
+	blacklist *blacklist.Store
 }
 
 // ErrNotFound reports a missing interface/peer.
@@ -46,7 +48,8 @@ func New(cfgPath string, drv driver.Driver, dryRun bool, log *slog.Logger) (*Man
 	if log == nil {
 		log = slog.New(slog.NewTextHandler(io.Discard, nil))
 	}
-	m := &Manager{path: cfgPath, store: cfg, driver: drv, dryRun: dryRun, log: log}
+	m := &Manager{path: cfgPath, store: cfg, driver: drv, dryRun: dryRun, log: log,
+		blacklist: blacklist.NewStore(cfg.Settings.Blacklist)}
 	if !dryRun {
 		if err := m.Reconcile(); err != nil {
 			m.log.Error("initial reconciliation failed", "error", err)
@@ -54,6 +57,9 @@ func New(cfgPath string, drv driver.Driver, dryRun bool, log *slog.Logger) (*Man
 	}
 	return m, nil
 }
+
+// Blacklist returns the live compiled blacklist shared with the DNS proxy.
+func (m *Manager) Blacklist() *blacklist.Store { return m.blacklist }
 
 // Reconcile brings live interfaces in line with the desired state.
 func (m *Manager) Reconcile() error {
@@ -124,9 +130,13 @@ func (m *Manager) applyInterface(iface *store.Interface) error {
 		if err := m.applyShaping(iface); err != nil {
 			m.log.Warn("apply rate limits", "iface", iface.Name, "error", err)
 		}
+		if err := m.applyBlacklist(iface.Name); err != nil {
+			m.log.Warn("apply blacklist", "iface", iface.Name, "error", err)
+		}
 		return nil
 	}
 	m.driver.RemoveShaping(iface.Name)
+	_ = m.driver.ApplyBlacklist(iface.Name, nil)
 	if osStack {
 		driver.RemoveRoutes(iface.Name, allowedIPs(iface))
 		driver.RemoveDefaultRoutes(iface.Name, v4, v6)
@@ -146,6 +156,21 @@ func (m *Manager) applyShaping(iface *store.Interface) error {
 		if errors.Is(err, driver.ErrShapingUnsupported) {
 			m.log.Warn("rate limits configured but not enforced by this driver",
 				"iface", iface.Name, "driver", m.driver.Name())
+			return nil
+		}
+		return err
+	}
+	return nil
+}
+
+// applyBlacklist installs the global block list on an interface's data path.
+// A driver that cannot enforce it is only a warning: the block list is still
+// enforced at the DNS proxy and the configuration is kept.
+func (m *Manager) applyBlacklist(name string) error {
+	if err := m.driver.ApplyBlacklist(name, m.store.Settings.Blacklist); err != nil {
+		if errors.Is(err, driver.ErrBlacklistUnsupported) {
+			m.log.Warn("blacklist configured but not enforced by this driver",
+				"iface", name, "driver", m.driver.Name())
 			return nil
 		}
 		return err
@@ -369,6 +394,7 @@ func (m *Manager) DeleteInterface(name string) error {
 			}
 		}
 		m.driver.RemoveShaping(iface.Name)
+		_ = m.driver.ApplyBlacklist(iface.Name, nil)
 		if err := m.driver.Remove(iface.Name); err != nil {
 			m.log.Warn("driver remove failed", "iface", iface.Name, "error", err)
 		}
@@ -817,21 +843,41 @@ func (m *Manager) UpdateSettings(s store.Settings) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	forwardingChanged := m.store.Settings.ForwardingEnabled() != s.ForwardingEnabled()
+	blacklistChanged := !sameEntries(m.store.Settings.Blacklist, s.Blacklist)
 	m.store.Settings = s
+	m.blacklist.Set(s.Blacklist)
 	if err := m.persist(); err != nil {
 		return err
 	}
-	if forwardingChanged {
+	if forwardingChanged || blacklistChanged {
 		for _, iface := range m.store.Interfaces {
 			if !iface.Up {
 				continue
 			}
 			if err := m.applyInterface(iface); err != nil {
-				m.log.Warn("re-apply after forwarding change", "iface", iface.Name, "error", err)
+				m.log.Warn("re-apply after settings change", "iface", iface.Name, "error", err)
 			}
 		}
 	}
 	return nil
+}
+
+// sameEntries reports whether two string slices are equal, ignoring order.
+func sameEntries(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	seen := make(map[string]int, len(a))
+	for _, s := range a {
+		seen[s]++
+	}
+	for _, s := range b {
+		seen[s]--
+		if seen[s] < 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // ClientConfig produces a client config file for a peer.
